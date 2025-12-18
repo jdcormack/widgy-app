@@ -1,0 +1,355 @@
+import { mutation, query, internalMutation } from "./_generated/server";
+import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
+import { internal } from "./_generated/api";
+
+/**
+ * Create a new empty card.
+ * Sets the authorId to the current user automatically.
+ * Optionally accepts a boardId and status for kanban boards.
+ */
+export const create = mutation({
+  args: {
+    boardId: v.optional(v.id("boards")),
+    status: v.optional(v.string()),
+  },
+  returns: v.id("cards"),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in to create a card");
+    }
+
+    const cardId = await ctx.db.insert("cards", {
+      title: "",
+      description: "",
+      authorId: identity.subject,
+      boardId: args.boardId,
+      organizationId: identity.org_id as string,
+      assignedTo: undefined,
+      status: args.status ?? "someday",
+      updatedAt: Date.now(),
+    });
+
+    // Update board timestamp if card is added to a board
+    if (args.boardId) {
+      await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
+        boardId: args.boardId,
+      });
+    }
+
+    return cardId;
+  },
+});
+
+const cardValidator = v.object({
+  _id: v.id("cards"),
+  _creationTime: v.number(),
+  title: v.string(),
+  description: v.string(),
+  authorId: v.string(),
+  boardId: v.optional(v.id("boards")),
+  organizationId: v.string(),
+  assignedTo: v.optional(v.string()),
+  status: v.optional(v.string()),
+  updatedAt: v.optional(v.number()),
+});
+
+const cardWithBoardValidator = v.object({
+  _id: v.id("cards"),
+  _creationTime: v.number(),
+  title: v.string(),
+  description: v.string(),
+  authorId: v.string(),
+  boardId: v.optional(v.id("boards")),
+  organizationId: v.string(),
+  assignedTo: v.optional(v.string()),
+  status: v.optional(v.string()),
+  updatedAt: v.optional(v.number()),
+  boardName: v.optional(v.string()),
+});
+
+/**
+ * List cards for an organization with pagination.
+ * Returns 20 cards per page, sorted by creation time descending.
+ * Requires authentication and org membership.
+ */
+export const list = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: v.object({
+    page: v.array(cardWithBoardValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+    pageStatus: v.optional(
+      v.union(
+        v.literal("SplitRecommended"),
+        v.literal("SplitRequired"),
+        v.null()
+      )
+    ),
+    splitCursor: v.optional(v.union(v.string(), v.null())),
+  }),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    // Require authentication with org membership
+    if (!identity || !identity.org_id) {
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: "",
+      };
+    }
+
+    const results = await ctx.db
+      .query("cards")
+      .withIndex("by_organizationId", (q) =>
+        q.eq("organizationId", identity.org_id as string)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    // Fetch board names for cards that have a boardId
+    const cardsWithBoards = await Promise.all(
+      results.page.map(async (card) => {
+        if (card.boardId) {
+          const board = await ctx.db.get(card.boardId);
+          return { ...card, boardName: board?.name };
+        }
+        return { ...card, boardName: undefined };
+      })
+    );
+
+    return {
+      ...results,
+      page: cardsWithBoards,
+    };
+  },
+});
+
+/**
+ * Get a single card by ID.
+ * Returns null if card doesn't exist or user doesn't have access.
+ */
+export const getById = query({
+  args: {
+    cardId: v.id("cards"),
+  },
+  returns: v.union(cardValidator, v.null()),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.org_id) {
+      return null;
+    }
+
+    const card = await ctx.db.get(args.cardId);
+    if (!card || card.organizationId !== identity.org_id) {
+      return null;
+    }
+
+    return card;
+  },
+});
+
+/**
+ * Update a card's details.
+ * Requires authentication.
+ */
+export const update = mutation({
+  args: {
+    cardId: v.id("cards"),
+    title: v.string(),
+    description: v.string(),
+    boardId: v.optional(v.id("boards")),
+    assignedTo: v.optional(v.string()),
+    status: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in to update a card");
+    }
+
+    const card = await ctx.db.get(args.cardId);
+    if (!card) {
+      throw new Error("Card not found");
+    }
+
+    if (card.organizationId !== identity.org_id) {
+      throw new Error(
+        "Unauthorized: Cannot update card from another organization"
+      );
+    }
+
+    const oldBoardId = card.boardId;
+    const newBoardId = args.boardId;
+
+    // Only include fields that are explicitly provided to avoid overwriting with undefined
+    const updates: {
+      title: string;
+      description: string;
+      updatedAt: number;
+      boardId?: typeof args.boardId;
+      assignedTo?: typeof args.assignedTo;
+      status?: typeof args.status;
+    } = {
+      title: args.title,
+      description: args.description,
+      updatedAt: Date.now(),
+    };
+
+    // Only update optional fields if they are explicitly provided in args
+    if ("boardId" in args) {
+      updates.boardId = args.boardId;
+    }
+    if ("assignedTo" in args) {
+      updates.assignedTo = args.assignedTo;
+    }
+    if ("status" in args && args.status !== undefined) {
+      updates.status = args.status;
+    }
+
+    await ctx.db.patch(args.cardId, updates);
+
+    // Update board timestamps for affected boards
+    if (oldBoardId) {
+      await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
+        boardId: oldBoardId,
+      });
+    }
+    if (newBoardId && newBoardId !== oldBoardId) {
+      await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
+        boardId: newBoardId,
+      });
+    }
+
+    return null;
+  },
+});
+
+/**
+ * Delete a card.
+ * Requires authentication and org membership.
+ */
+export const remove = mutation({
+  args: {
+    cardId: v.id("cards"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in to delete a card");
+    }
+
+    const card = await ctx.db.get(args.cardId);
+    if (!card) {
+      throw new Error("Card not found");
+    }
+
+    if (card.organizationId !== identity.org_id) {
+      throw new Error(
+        "Unauthorized: Cannot delete card from another organization"
+      );
+    }
+
+    // Update board timestamp if card was on a board
+    if (card.boardId) {
+      await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
+        boardId: card.boardId,
+      });
+    }
+
+    await ctx.db.delete(args.cardId);
+
+    return null;
+  },
+});
+
+/**
+ * List cards for a specific board.
+ * Public boards can be viewed by anyone.
+ * Private boards require authentication and org membership.
+ */
+export const listByBoard = query({
+  args: {
+    boardId: v.id("boards"),
+  },
+  returns: v.array(cardValidator),
+  handler: async (ctx, args) => {
+    const board = await ctx.db.get(args.boardId);
+    if (!board) {
+      return [];
+    }
+
+    const identity = await ctx.auth.getUserIdentity();
+
+    // Check access for private boards
+    if (board.visibility === "private") {
+      if (!identity || identity.org_id !== board.organizationId) {
+        return [];
+      }
+    }
+
+    const cards = await ctx.db
+      .query("cards")
+      .withIndex("by_boardId", (q) => q.eq("boardId", args.boardId))
+      .collect();
+
+    // Sort by updatedAt descending, falling back to _creationTime for older cards
+    return cards.sort(
+      (a, b) =>
+        (b.updatedAt ?? b._creationTime) - (a.updatedAt ?? a._creationTime)
+    );
+  },
+});
+
+/**
+ * Update a card's status (for kanban drag-and-drop).
+ * Requires authentication and org membership.
+ */
+export const updateStatus = mutation({
+  args: {
+    cardId: v.id("cards"),
+    status: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in to update a card");
+    }
+
+    const card = await ctx.db.get(args.cardId);
+    if (!card) {
+      throw new Error("Card not found");
+    }
+
+    if (card.organizationId !== identity.org_id) {
+      throw new Error(
+        "Unauthorized: Cannot update card from another organization"
+      );
+    }
+
+    await ctx.db.patch(args.cardId, {
+      status: args.status,
+      updatedAt: Date.now(),
+    });
+
+    // Update board timestamp
+    if (card.boardId) {
+      await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
+        boardId: card.boardId,
+      });
+    }
+
+    return null;
+  },
+});

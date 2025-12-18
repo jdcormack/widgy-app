@@ -59,7 +59,7 @@ export function CommandMenu() {
         className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
       >
         <span>Search…</span>
-        <Kbd>⌘K</Kbd>
+        <Kbd>Ctrl+K</Kbd>
       </button>
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput
@@ -78,7 +78,7 @@ export function CommandMenu() {
                 {searchResults.map((card) => (
                   <CommandItem
                     key={card._id}
-                    value={`card-${card._id}-${card.title}`}
+                    value={`card-${card._id}-${card.title}-${card.description}`}
                     onSelect={() =>
                       runCommand(() => router.push(`/cards/${card._id}`))
                     }
@@ -88,12 +88,12 @@ export function CommandMenu() {
                         <span className="truncate font-medium capitalize">
                           {card.title || "Untitled Card"}
                         </span>
-                        {card.boardName && (
-                          <Badge className="gap-1">
+                        {card.boardName ? (
+                          <Badge className="gap-1 shrink-0">
                             <Columns3Icon className="text-white" />
                             {card.boardName}
                           </Badge>
-                        )}
+                        ) : null}
                       </div>
                       {card.description && (
                         <span className="text-xs text-muted-foreground truncate">

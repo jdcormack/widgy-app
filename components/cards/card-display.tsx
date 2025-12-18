@@ -45,7 +45,7 @@ export function CardDisplay({
 
       <div className="space-y-2">
         {card.description ? (
-          <div className="prose prose-sm max-w-none dark:prose-invert border-t border-b py-4">
+          <div className="prose prose-sm max-w-none dark:prose-invert border-t border-b py-4 space-y-2">
             <Remark
               rehypeReactOptions={{
                 components: {
@@ -53,17 +53,17 @@ export function CardDisplay({
                     <h1 className="font-black text-2xl" {...props} />
                   ),
                   h2: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
-                    <h2 className="font-bold" {...props} />
+                    <h2 className="font-bold text-xl" {...props} />
                   ),
                   ul: (props: React.HTMLAttributes<HTMLUListElement>) => (
-                    <ul className="list-disc list-inside" {...props} />
+                    <ul className="list-disc list-inside pl-2" {...props} />
                   ),
                   ol: (props: React.HTMLAttributes<HTMLOListElement>) => (
-                    <ol className="list-decimal list-inside" {...props} />
+                    <ol className="list-decimal list-inside pl-2" {...props} />
                   ),
                   a: (props: React.HTMLAttributes<HTMLAnchorElement>) => (
                     <a
-                      className="text-primary underline hover:text-primary/80"
+                      className="text-blue-600 underline hover:text-blue-700 transition-colors"
                       {...props}
                     />
                   ),

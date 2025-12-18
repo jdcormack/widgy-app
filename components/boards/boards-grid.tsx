@@ -6,13 +6,19 @@ import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import {
   Card,
-  CardHeader,
+  CardContent,
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { Button } from "@/components/ui/button";
-import { Globe, Lock, LayoutGrid, Plus } from "lucide-react";
+import {
+  Globe,
+  Lock,
+  LayoutGrid,
+  ChevronRightIcon,
+  CornerDownLeft,
+} from "lucide-react";
+import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 import { CreateBoardDialog } from "./create-board-dialog";
 
@@ -114,19 +120,27 @@ export function BoardsGrid({ organizationId }: BoardsGridProps) {
                 }
               }}
             >
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  {board.visibility === "public" ? (
-                    <Globe className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <Lock className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <CardTitle className="text-lg">{board.name}</CardTitle>
+              <CardContent className="flex items-center justify-between">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    {board.visibility === "public" ? (
+                      <Globe className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <CardTitle className="text-lg">{board.name}</CardTitle>
+                  </div>
+                  <CardDescription className="text-xs">
+                    Updated {formatRelativeTime(board.updatedAt)}
+                  </CardDescription>
                 </div>
-                <CardDescription className="text-xs">
-                  Updated {formatRelativeTime(board.updatedAt)}
-                </CardDescription>
-              </CardHeader>
+                <div className="relative w-8 h-5 flex items-center justify-end">
+                  <Kbd className="absolute right-0 hidden sm:inline-flex opacity-0 group-focus-visible:opacity-100 transition-opacity">
+                    <CornerDownLeft className="h-3 w-3" />
+                  </Kbd>
+                  <ChevronRightIcon className="absolute right-0 h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-visible:opacity-0 transition-opacity" />
+                </div>
+              </CardContent>
             </Card>
           ))}
         </div>

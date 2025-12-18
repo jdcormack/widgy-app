@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Columns3, IdCard } from "lucide-react";
+import { useQuery } from "convex/react";
+import { Columns3, IdCard, FileText, Columns3Icon } from "lucide-react";
 
+import { api } from "@/convex/_generated/api";
 import {
   CommandDialog,
   CommandEmpty,
@@ -12,11 +14,19 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Badge } from "@/components/ui/badge";
 import { Kbd } from "@/components/ui/kbd";
 
 export function CommandMenu() {
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
   const router = useRouter();
+
+  // Search cards when there's a search query
+  const searchResults = useQuery(
+    api.cards.search,
+    search.trim().length > 0 ? { query: search } : "skip"
+  );
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -29,6 +39,13 @@ export function CommandMenu() {
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
   }, []);
+
+  // Reset search when dialog closes
+  React.useEffect(() => {
+    if (!open) {
+      setSearch("");
+    }
+  }, [open]);
 
   const runCommand = React.useCallback((command: () => void) => {
     setOpen(false);
@@ -45,9 +62,51 @@ export function CommandMenu() {
         <Kbd>⌘K</Kbd>
       </button>
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Type a command or search…" />
+        <CommandInput
+          placeholder="Type a command or search…"
+          value={search}
+          onValueChange={setSearch}
+        />
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
+
+          {/* Show search results when there's a search query */}
+          {search.trim().length > 0 &&
+            searchResults &&
+            searchResults.length > 0 && (
+              <CommandGroup heading="Cards">
+                {searchResults.map((card) => (
+                  <CommandItem
+                    key={card._id}
+                    value={`card-${card._id}-${card.title}`}
+                    onSelect={() =>
+                      runCommand(() => router.push(`/cards/${card._id}`))
+                    }
+                  >
+                    <div className="flex flex-col gap-0.5 overflow-hidden">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium capitalize">
+                          {card.title || "Untitled Card"}
+                        </span>
+                        {card.boardName && (
+                          <Badge className="gap-1">
+                            <Columns3Icon className="text-white" />
+                            {card.boardName}
+                          </Badge>
+                        )}
+                      </div>
+                      {card.description && (
+                        <span className="text-xs text-muted-foreground truncate">
+                          {card.description.slice(0, 60)}
+                          {card.description.length > 60 ? "…" : ""}
+                        </span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+
           <CommandGroup heading="Navigation">
             <CommandItem
               onSelect={() => runCommand(() => router.push("/boards"))}

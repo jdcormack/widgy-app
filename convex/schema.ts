@@ -31,5 +31,13 @@ export default defineSchema({
     .index("by_organizationId", ["organizationId"])
     .index("by_boardId", ["boardId"])
     .index("by_boardId_and_status", ["boardId", "status"])
-    .index("by_boardId_and_updatedAt", ["boardId", "updatedAt"]),
+    .index("by_boardId_and_updatedAt", ["boardId", "updatedAt"])
+    .searchIndex("search_title", {
+      searchField: "title",
+      filterFields: ["organizationId"],
+    })
+    .searchIndex("search_description", {
+      searchField: "description",
+      filterFields: ["organizationId"],
+    }),
 });

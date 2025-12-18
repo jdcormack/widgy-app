@@ -353,3 +353,70 @@ export const updateStatus = mutation({
     return null;
   },
 });
+
+/**
+ * Search cards by title and description.
+ * Searches both fields and merges results, removing duplicates.
+ * Returns up to 10 results for command menu display.
+ * Requires authentication and org membership.
+ */
+export const search = query({
+  args: {
+    query: v.string(),
+  },
+  returns: v.array(cardWithBoardValidator),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (!identity || !identity.org_id) {
+      return [];
+    }
+
+    // Don't search if query is empty or too short
+    if (args.query.trim().length < 1) {
+      return [];
+    }
+
+    const organizationId = identity.org_id as string;
+
+    // Search by title
+    const titleResults = await ctx.db
+      .query("cards")
+      .withSearchIndex("search_title", (q) =>
+        q.search("title", args.query).eq("organizationId", organizationId)
+      )
+      .take(10);
+
+    // Search by description
+    const descriptionResults = await ctx.db
+      .query("cards")
+      .withSearchIndex("search_description", (q) =>
+        q.search("description", args.query).eq("organizationId", organizationId)
+      )
+      .take(10);
+
+    // Merge and deduplicate results
+    const seenIds = new Set<string>();
+    const mergedResults: Array<(typeof titleResults)[number]> = [];
+
+    for (const card of [...titleResults, ...descriptionResults]) {
+      if (!seenIds.has(card._id)) {
+        seenIds.add(card._id);
+        mergedResults.push(card);
+      }
+    }
+
+    // Fetch board names for cards and return up to 10 results
+    const resultsWithBoards = await Promise.all(
+      mergedResults.slice(0, 10).map(async (card) => {
+        if (card.boardId) {
+          const board = await ctx.db.get(card.boardId);
+          return { ...card, boardName: board?.name };
+        }
+        return { ...card, boardName: undefined };
+      })
+    );
+
+    return resultsWithBoards;
+  },
+});

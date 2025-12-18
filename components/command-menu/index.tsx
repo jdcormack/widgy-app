@@ -16,16 +16,18 @@ import {
 } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import { Kbd } from "@/components/ui/kbd";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 export function CommandMenu() {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const router = useRouter();
 
-  // Search cards when there's a search query
+  // Search cards when there's a search query (debounced to avoid thrashing)
   const searchResults = useQuery(
     api.cards.search,
-    search.trim().length > 0 ? { query: search } : "skip"
+    debouncedSearch.trim().length > 0 ? { query: debouncedSearch } : "skip"
   );
 
   React.useEffect(() => {
@@ -71,7 +73,7 @@ export function CommandMenu() {
           <CommandEmpty>No results found.</CommandEmpty>
 
           {/* Show search results when there's a search query */}
-          {search.trim().length > 0 &&
+          {debouncedSearch.trim().length > 0 &&
             searchResults &&
             searchResults.length > 0 && (
               <CommandGroup heading="Cards">

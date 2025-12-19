@@ -6,8 +6,6 @@ import { requireOrgAuth } from "@/lib/auth";
 import { CardDetailClient } from "@/components/cards";
 import { Id } from "@/convex/_generated/dataModel";
 import { getOrganizationMembers } from "@/app/actions";
-import { PageHeader } from "@/components/page-header";
-import { PageContainer } from "@/components/page-container";
 
 export default async function CardDetailPage({
   params,
@@ -32,17 +30,12 @@ export default async function CardDetailPage({
   ]);
 
   return (
-    <>
-      <PageHeader />
-      <PageContainer>
-        <div className="w-full max-w-3xl mx-auto">
-          <CardDetailClient
-            preloadedCard={preloadedCard}
-            preloadedBoards={preloadedBoards}
-            members={members}
-          />
-        </div>
-      </PageContainer>
-    </>
+    <div className="w-full max-w-3xl mx-auto">
+      <CardDetailClient
+        preloadedCard={preloadedCard}
+        preloadedBoards={preloadedBoards}
+        members={members}
+      />
+    </div>
   );
 }

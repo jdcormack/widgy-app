@@ -114,7 +114,7 @@ export function BoardSettingsForm({ preloadedBoard }: BoardSettingsFormProps) {
 
   if (board === null) {
     return (
-      <div className="space-y-6 mt-6">
+      <div className="space-y-6">
         <div className="gap-4 max-w-2xl mx-auto mb-2">
           <Skeleton className="h-10 w-36" />
           <Skeleton className="h-9 w-40 mb-4 mt-2" />
@@ -153,7 +153,7 @@ export function BoardSettingsForm({ preloadedBoard }: BoardSettingsFormProps) {
 
   return (
     <>
-      <div className="space-y-6 mt-6">
+      <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-black mt-2">Board Settings</h1>
         </div>

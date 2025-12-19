@@ -3,8 +3,6 @@ import { getSubdomainData } from "@/lib/subdomains";
 import { requireOrgAuth } from "@/lib/auth";
 import { CardsListClient } from "@/components/cards";
 import { getOrganizationMembers } from "@/app/actions";
-import { PageHeader } from "@/components/page-header";
-import { PageContainer } from "@/components/page-container";
 
 export default async function CardsPage({
   params,
@@ -22,12 +20,5 @@ export default async function CardsPage({
 
   const members = await getOrganizationMembers();
 
-  return (
-    <>
-      <PageHeader />
-      <PageContainer>
-        <CardsListClient members={members} />
-      </PageContainer>
-    </>
-  );
+  return <CardsListClient members={members} />;
 }

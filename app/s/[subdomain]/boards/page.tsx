@@ -2,8 +2,6 @@ import { notFound } from "next/navigation";
 import { getSubdomainData } from "@/lib/subdomains";
 import { requireOrgAuth } from "@/lib/auth";
 import { BoardsGrid } from "@/components/boards";
-import { PageHeader } from "@/components/page-header";
-import { PageContainer } from "@/components/page-container";
 
 export default async function BoardsPage({
   params,
@@ -19,13 +17,5 @@ export default async function BoardsPage({
 
   await requireOrgAuth(subdomainData.organizationId);
 
-  return (
-    <>
-      <PageHeader />
-
-      <PageContainer>
-        <BoardsGrid organizationId={subdomainData.organizationId} />
-      </PageContainer>
-    </>
-  );
+  return <BoardsGrid organizationId={subdomainData.organizationId} />;
 }

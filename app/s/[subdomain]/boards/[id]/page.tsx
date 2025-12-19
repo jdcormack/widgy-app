@@ -27,15 +27,10 @@ export default async function BoardDetailPage({
   const members = await getOrganizationMembers();
 
   return (
-    <>
-      <PageHeader />
-      <PageContainer>
-        <BoardKanban
-          boardId={id as Id<"boards">}
-          members={members}
-          isAuthenticated={isAuthenticated}
-        />
-      </PageContainer>
-    </>
+    <BoardKanban
+      boardId={id as Id<"boards">}
+      members={members}
+      isAuthenticated={isAuthenticated}
+    />
   );
 }

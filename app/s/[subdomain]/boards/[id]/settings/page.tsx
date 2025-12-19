@@ -4,8 +4,6 @@ import { preloadQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { getSubdomainData } from "@/lib/subdomains";
-import { PageHeader } from "@/components/page-header";
-import { PageContainer } from "@/components/page-container";
 import { BoardSettingsForm } from "./_board-settings-form";
 
 export default async function BoardSettingsPage({
@@ -33,13 +31,8 @@ export default async function BoardSettingsPage({
   });
 
   return (
-    <>
-      <PageHeader />
-      <PageContainer>
-        <div className="w-full max-w-xl mx-auto">
-          <BoardSettingsForm preloadedBoard={preloadedBoard} />
-        </div>
-      </PageContainer>
-    </>
+    <div className="w-full max-w-xl mx-auto">
+      <BoardSettingsForm preloadedBoard={preloadedBoard} />
+    </div>
   );
 }

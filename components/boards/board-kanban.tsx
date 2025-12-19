@@ -240,7 +240,7 @@ export function BoardKanban({
   // Mobile view with collapsible columns
   if (isMobile) {
     return (
-      <div className="space-y-4 mt-5">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-black capitalize">{board.name}</h1>
@@ -290,7 +290,7 @@ export function BoardKanban({
 
   // Desktop view with drag and drop
   return (
-    <div className="space-y-4 mt-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h1 className="text-3xl font-black capitalize">{board.name}</h1>

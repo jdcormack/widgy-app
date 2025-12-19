@@ -41,7 +41,7 @@ A production-ready example of a multi-tenant application built with Next.js 15, 
 2. Install dependencies:
 
    ```bash
-   pnpm install
+   npm install
    ```
 
 3. Set up environment variables:
@@ -55,7 +55,7 @@ A production-ready example of a multi-tenant application built with Next.js 15, 
 4. Start the development server:
 
    ```bash
-   pnpm dev
+   npm dev
    ngrok http 3000
    npx convex dev
    ```

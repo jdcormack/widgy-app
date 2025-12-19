@@ -578,3 +578,28 @@ export const search = query({
     return resultsWithBoards;
   },
 });
+
+/**
+ * Create a feedback card from the public feedback API.
+ * Does not require authentication - called from the feedback API endpoint.
+ * The API endpoint handles rate limiting and org verification.
+ */
+export const createFeedback = mutation({
+  args: {
+    title: v.string(),
+    description: v.string(),
+    email: v.string(),
+    organizationId: v.string(),
+  },
+  returns: v.id("cards"),
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("cards", {
+      title: args.title,
+      description: args.description,
+      authorId: `feedback:${args.email}`,
+      organizationId: args.organizationId,
+      status: "someday",
+      updatedAt: Date.now(),
+    });
+  },
+});

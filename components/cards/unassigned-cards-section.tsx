@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { usePaginatedQuery, useMutation, useConvexAuth } from "convex/react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,15 +21,48 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Kbd } from "@/components/ui/kbd";
 import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+  InputGroupTextarea,
+} from "@/components/ui/input-group";
+import {
   ChevronRightIcon,
   CornerDownLeft,
   PlusIcon,
   InboxIcon,
   GripVerticalIcon,
+  MessageSquarePlusIcon,
+  MailIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type OrganizationMember } from "@/app/actions";
 import { CardDetails, type CardDetailsData } from "./card-details";
+
+// Feedback form schema with honeypot field
+const feedbackFormSchema = z.object({
+  title: z
+    .string()
+    .min(1, "Title is required")
+    .max(200, "Title must be 200 characters or less"),
+  description: z
+    .string()
+    .min(1, "Description is required")
+    .max(5000, "Description must be 5000 characters or less"),
+  email: z.string().email("Please enter a valid email"),
+  website: z.string().max(0), // Honeypot - must be empty
+});
+
+type FeedbackFormValues = z.infer<typeof feedbackFormSchema>;
 
 const ITEMS_PER_PAGE = 10;
 const HIGHLIGHT_DURATION = 2000;
@@ -114,12 +151,14 @@ function DraggableCard({
 
 interface UnassignedCardsSectionProps {
   members: OrganizationMember[];
+  organizationId: string;
   isDraggable?: boolean;
   undoneCardId?: string | null;
 }
 
 export function UnassignedCardsSection({
   members,
+  organizationId,
   isDraggable = false,
   undoneCardId = null,
 }: UnassignedCardsSectionProps) {
@@ -233,16 +272,149 @@ export function UnassignedCardsSection({
     }
   }, [results]);
 
-  // Show placeholder for unauthenticated users
+  // Feedback form for unauthenticated users
+  const form = useForm<FeedbackFormValues>({
+    resolver: zodResolver(feedbackFormSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      email: "",
+      website: "",
+    },
+  });
+
+  const { isSubmitting } = form.formState;
+
+  async function onSubmitFeedback(values: FeedbackFormValues) {
+    try {
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...values, organizationId }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to submit feedback");
+      }
+      toast.success("Thank you! Your feedback has been submitted.");
+      form.reset();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to submit feedback. Please try again."
+      );
+    }
+  }
+
+  // Show feedback form for unauthenticated users
   if (!isAuthenticated && !isAuthLoading) {
     return (
       <div className="space-y-6 w-full">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Unassigned Cards</h2>
+          <h2 className="text-2xl font-bold">Submit Feedback</h2>
         </div>
-        <div className="text-center py-12 text-muted-foreground border rounded-lg bg-muted/30">
-          <InboxIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p>Sign in to view and manage your cards.</p>
+        <div className="border rounded-lg bg-muted/30 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <MessageSquarePlusIcon className="h-6 w-6 text-muted-foreground" />
+            <p className="text-muted-foreground">
+              Share your ideas, bugs, or feature requests.
+            </p>
+          </div>
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onSubmitFeedback)}
+              className="space-y-4"
+            >
+              {/* Honeypot field - hidden from real users, bots will fill it */}
+              <div className="sr-only" aria-hidden="true">
+                <label htmlFor="website">Website</label>
+                <input
+                  type="text"
+                  id="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  {...form.register("website")}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <InputGroup>
+                        <InputGroupInput
+                          placeholder="What's on your mind?"
+                          {...field}
+                        />
+                        <InputGroupAddon align="inline-end">
+                          <InputGroupText className="text-xs">
+                            {field.value.length}/200
+                          </InputGroupText>
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <InputGroup>
+                        <InputGroupTextarea
+                          placeholder="Tell us more about your idea, bug, or feature request..."
+                          {...field}
+                        />
+                        <InputGroupAddon align="block-end">
+                          <InputGroupText className="ml-auto text-xs">
+                            {field.value.length}/5000
+                          </InputGroupText>
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <InputGroup>
+                        <InputGroupInput
+                          type="email"
+                          placeholder="you@example.com"
+                          {...field}
+                        />
+                        <InputGroupAddon>
+                          <MailIcon />
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Button type="submit" disabled={isSubmitting} className="w-full">
+                {isSubmitting ? <Spinner className="h-4 w-4 mr-2" /> : null}
+                Submit Feedback
+              </Button>
+            </form>
+          </Form>
         </div>
       </div>
     );

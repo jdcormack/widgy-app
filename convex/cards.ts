@@ -131,6 +131,61 @@ export const list = query({
 });
 
 /**
+ * List unassigned cards (cards not on any board) for an organization with pagination.
+ * Returns cards sorted by creation time descending.
+ * Requires authentication and org membership.
+ */
+export const listUnassigned = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: v.object({
+    page: v.array(cardValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+    pageStatus: v.optional(
+      v.union(
+        v.literal("SplitRecommended"),
+        v.literal("SplitRequired"),
+        v.null()
+      )
+    ),
+    splitCursor: v.optional(v.union(v.string(), v.null())),
+  }),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    // Require authentication with org membership
+    if (!identity || !identity.org_id) {
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: "",
+      };
+    }
+
+    const organizationId = identity.org_id as string;
+
+    // Query cards with undefined boardId using the by_boardId index
+    const results = await ctx.db
+      .query("cards")
+      .withIndex("by_boardId", (q) => q.eq("boardId", undefined))
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    // Filter to current org only (since the index doesn't include organizationId)
+    const orgCards = results.page.filter(
+      (card) => card.organizationId === organizationId
+    );
+
+    return {
+      ...results,
+      page: orgCards,
+    };
+  },
+});
+
+/**
  * Get a single card by ID.
  * Returns null if card doesn't exist or user doesn't have access.
  */

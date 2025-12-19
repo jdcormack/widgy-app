@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { getSubdomainData } from "@/lib/subdomains";
 import { rootDomain } from "@/lib/utils";
 import { HomePageBoards } from "@/components/boards";
+import { UnassignedCardsSection } from "@/components/cards";
+import { getOrganizationMembers } from "@/app/actions";
 
 export async function generateMetadata({
   params,
@@ -36,5 +38,13 @@ export default async function SubdomainPage({
     notFound();
   }
 
-  return <HomePageBoards organizationId={subdomainData.organizationId} />;
+  // Fetch org members for authenticated users (returns empty array if not authenticated)
+  const members = await getOrganizationMembers();
+
+  return (
+    <div className="space-y-8">
+      <UnassignedCardsSection members={members} />
+      <HomePageBoards organizationId={subdomainData.organizationId} />
+    </div>
+  );
 }

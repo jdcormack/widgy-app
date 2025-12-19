@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { usePaginatedQuery, useMutation, useConvexAuth } from "convex/react";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -19,20 +21,101 @@ import {
   CornerDownLeft,
   PlusIcon,
   InboxIcon,
+  GripVerticalIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type OrganizationMember } from "@/app/actions";
-import { CardDetails } from "./card-details";
+import { CardDetails, type CardDetailsData } from "./card-details";
 
 const ITEMS_PER_PAGE = 10;
 const HIGHLIGHT_DURATION = 2000;
 
+interface DraggableCardProps {
+  card: CardDetailsData;
+  members: OrganizationMember[];
+  isHighlighted: boolean;
+  isDraggable: boolean;
+  onClick: () => void;
+  cardRef: (el: HTMLDivElement | null) => void;
+}
+
+function DraggableCard({
+  card,
+  members,
+  isHighlighted,
+  isDraggable,
+  onClick,
+  cardRef,
+}: DraggableCardProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: card._id,
+      data: {
+        type: "unassigned-card",
+        card,
+      },
+      disabled: !isDraggable,
+    });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+  };
+
+  return (
+    <Card
+      ref={(el) => {
+        setNodeRef(el);
+        cardRef(el);
+      }}
+      style={style}
+      className={cn(
+        "group cursor-pointer hover:bg-accent/50 transition-all py-4",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+        isHighlighted && "ring-2 ring-primary bg-primary/5 animate-pulse",
+        isDragging && "opacity-50 ring-2 ring-primary",
+        isDraggable && "touch-none"
+      )}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          onClick();
+        }
+      }}
+      {...(isDraggable ? { ...attributes, ...listeners } : { tabIndex: 0 })}
+    >
+      <CardDetails
+        card={card}
+        members={members}
+        showBoardName={false}
+        showColumn={true}
+        variant="full"
+        trailingContent={
+          <div className="relative w-8 h-5 flex items-center justify-end">
+            {isDraggable ? (
+              <GripVerticalIcon className="h-5 w-5 text-muted-foreground opacity-50 group-hover:opacity-100 transition-opacity" />
+            ) : (
+              <>
+                <Kbd className="absolute right-0 hidden sm:inline-flex opacity-0 group-focus-visible:opacity-100 transition-opacity">
+                  <CornerDownLeft className="h-3 w-3" />
+                </Kbd>
+                <ChevronRightIcon className="absolute right-0 h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-visible:opacity-0 transition-opacity" />
+              </>
+            )}
+          </div>
+        }
+      />
+    </Card>
+  );
+}
+
 interface UnassignedCardsSectionProps {
   members: OrganizationMember[];
+  isDraggable?: boolean;
 }
 
 export function UnassignedCardsSection({
   members,
+  isDraggable = false,
 }: UnassignedCardsSectionProps) {
   const router = useRouter();
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
@@ -194,41 +277,17 @@ export function UnassignedCardsSection({
       ) : (
         <div className="space-y-3">
           {results.map((card) => (
-            <Card
+            <DraggableCard
               key={card._id}
-              ref={(el) => {
+              card={card}
+              members={members}
+              isHighlighted={highlightedCardId === card._id}
+              isDraggable={isDraggable}
+              onClick={() => handleCardClick(card._id)}
+              cardRef={(el) => {
                 if (el) cardRefs.current.set(card._id, el);
               }}
-              tabIndex={0}
-              className={cn(
-                "group cursor-pointer hover:bg-accent/50 transition-all py-4",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                highlightedCardId === card._id &&
-                  "ring-2 ring-primary bg-primary/5 animate-pulse"
-              )}
-              onClick={() => handleCardClick(card._id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleCardClick(card._id);
-                }
-              }}
-            >
-              <CardDetails
-                card={card}
-                members={members}
-                showBoardName={false}
-                showColumn={true}
-                variant="full"
-                trailingContent={
-                  <div className="relative w-8 h-5 flex items-center justify-end">
-                    <Kbd className="absolute right-0 hidden sm:inline-flex opacity-0 group-focus-visible:opacity-100 transition-opacity">
-                      <CornerDownLeft className="h-3 w-3" />
-                    </Kbd>
-                    <ChevronRightIcon className="absolute right-0 h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-visible:opacity-0 transition-opacity" />
-                  </div>
-                }
-              />
-            </Card>
+            />
           ))}
         </div>
       )}

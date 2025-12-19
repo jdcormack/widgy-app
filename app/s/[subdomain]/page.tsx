@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getSubdomainData } from "@/lib/subdomains";
 import { rootDomain } from "@/lib/utils";
-import { HomePageBoards } from "@/components/boards";
-import { UnassignedCardsSection } from "@/components/cards";
+import { HomePageDndWrapper } from "@/components/home-page-dnd-wrapper";
 import { getOrganizationMembers } from "@/app/actions";
 
 export async function generateMetadata({
@@ -42,9 +41,9 @@ export default async function SubdomainPage({
   const members = await getOrganizationMembers();
 
   return (
-    <div className="flex flex-col lg:flex-row-reverse gap-10 max-w-5xl w-full mx-auto py-5">
-      <HomePageBoards organizationId={subdomainData.organizationId} />
-      <UnassignedCardsSection members={members} />
-    </div>
+    <HomePageDndWrapper
+      organizationId={subdomainData.organizationId}
+      members={members}
+    />
   );
 }

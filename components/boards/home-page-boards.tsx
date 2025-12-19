@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
+import { useDroppable } from "@dnd-kit/core";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   Card,
   CardContent,
@@ -17,13 +19,94 @@ import {
   LayoutGrid,
   ChevronRightIcon,
   CornerDownLeft,
+  PartyPopperIcon,
 } from "lucide-react";
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 import { CreateBoardDialog } from "./create-board-dialog";
 
+interface BoardData {
+  _id: Id<"boards">;
+  name: string;
+  visibility: string;
+  updatedAt: number;
+}
+
+interface DroppableBoardCardProps {
+  board: BoardData;
+  isDropTarget: boolean;
+  isHighlighted: boolean;
+  onClick: () => void;
+}
+
+function DroppableBoardCard({
+  board,
+  isDropTarget,
+  isHighlighted,
+  onClick,
+}: DroppableBoardCardProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: board._id,
+    data: {
+      type: "board",
+      board,
+    },
+    disabled: !isDropTarget,
+  });
+
+  return (
+    <Card
+      ref={setNodeRef}
+      tabIndex={0}
+      className={cn(
+        "group cursor-pointer hover:bg-accent/50 transition-all",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+        isOver && "ring-2 ring-primary bg-primary/10 scale-[1.02]",
+        isHighlighted && "ring-2 ring-green-500 bg-green-500/10 animate-pulse"
+      )}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          onClick();
+        }
+      }}
+    >
+      <CardContent className="flex items-center justify-between">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            {isHighlighted ? (
+              <PartyPopperIcon className="h-4 w-4 text-green-500 animate-bounce" />
+            ) : board.visibility === "public" ? (
+              <Globe className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Lock className="h-4 w-4 text-muted-foreground" />
+            )}
+            <CardTitle className="text-lg">{board.name}</CardTitle>
+            {isHighlighted && (
+              <span className="text-xs text-green-600 font-medium">
+                Card added!
+              </span>
+            )}
+          </div>
+          <CardDescription className="text-xs">
+            Updated {formatRelativeTime(board.updatedAt)}
+          </CardDescription>
+        </div>
+        <div className="relative w-8 h-5 flex items-center justify-end">
+          <Kbd className="absolute right-0 hidden sm:inline-flex opacity-0 group-focus-visible:opacity-100 transition-opacity">
+            <CornerDownLeft className="h-3 w-3" />
+          </Kbd>
+          <ChevronRightIcon className="absolute right-0 h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-visible:opacity-0 transition-opacity" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 interface HomePageBoardsProps {
   organizationId: string;
+  isDropTarget?: boolean;
+  highlightedBoardId?: string | null;
 }
 
 function formatRelativeTime(timestamp: number): string {
@@ -47,7 +130,11 @@ function formatRelativeTime(timestamp: number): string {
   return "Just now";
 }
 
-export function HomePageBoards({ organizationId }: HomePageBoardsProps) {
+export function HomePageBoards({
+  organizationId,
+  isDropTarget = false,
+  highlightedBoardId = null,
+}: HomePageBoardsProps) {
   const router = useRouter();
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const boards = useQuery(api.boards.listByOrganization, { organizationId });
@@ -137,42 +224,13 @@ export function HomePageBoards({ organizationId }: HomePageBoardsProps) {
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {boards.map((board) => (
-            <Card
+            <DroppableBoardCard
               key={board._id}
-              tabIndex={0}
-              className={cn(
-                "group cursor-pointer hover:bg-accent/50 transition-all",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              )}
+              board={board}
+              isDropTarget={isDropTarget}
+              isHighlighted={highlightedBoardId === board._id}
               onClick={() => handleBoardClick(board._id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleBoardClick(board._id);
-                }
-              }}
-            >
-              <CardContent className="flex items-center justify-between">
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2">
-                    {board.visibility === "public" ? (
-                      <Globe className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Lock className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <CardTitle className="text-lg">{board.name}</CardTitle>
-                  </div>
-                  <CardDescription className="text-xs">
-                    Updated {formatRelativeTime(board.updatedAt)}
-                  </CardDescription>
-                </div>
-                <div className="relative w-8 h-5 flex items-center justify-end">
-                  <Kbd className="absolute right-0 hidden sm:inline-flex opacity-0 group-focus-visible:opacity-100 transition-opacity">
-                    <CornerDownLeft className="h-3 w-3" />
-                  </Kbd>
-                  <ChevronRightIcon className="absolute right-0 h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-visible:opacity-0 transition-opacity" />
-                </div>
-              </CardContent>
-            </Card>
+            />
           ))}
         </div>
       )}

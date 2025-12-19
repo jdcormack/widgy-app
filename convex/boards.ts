@@ -106,13 +106,13 @@ export const listByOrganization = query({
       ? allBoards
       : allBoards.filter((board) => board.visibility === "public");
 
-    // Sort by updatedAt descending (most recent first)
+    // Sort by creation time descending (newest first) for stable ordering
     const sortedBoards = filteredBoards
       .map((board) => ({
         ...board,
         updatedAt: board.updatedAt ?? board._creationTime,
       }))
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+      .sort((a, b) => b._creationTime - a._creationTime);
 
     return sortedBoards;
   },

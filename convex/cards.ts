@@ -410,6 +410,62 @@ export const updateStatus = mutation({
 });
 
 /**
+ * Assign an unassigned card to a board.
+ * Sets the board and status to "someday".
+ * Requires authentication and org membership.
+ */
+export const assignToBoard = mutation({
+  args: {
+    cardId: v.id("cards"),
+    boardId: v.id("boards"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in to assign a card");
+    }
+
+    const card = await ctx.db.get(args.cardId);
+    if (!card) {
+      throw new Error("Card not found");
+    }
+
+    if (card.organizationId !== identity.org_id) {
+      throw new Error(
+        "Unauthorized: Cannot assign card from another organization"
+      );
+    }
+
+    // Verify the board exists and belongs to the same organization
+    const board = await ctx.db.get(args.boardId);
+    if (!board) {
+      throw new Error("Board not found");
+    }
+
+    if (board.organizationId !== identity.org_id) {
+      throw new Error(
+        "Unauthorized: Cannot assign card to board from another organization"
+      );
+    }
+
+    await ctx.db.patch(args.cardId, {
+      boardId: args.boardId,
+      status: "someday",
+      updatedAt: Date.now(),
+    });
+
+    // Update board timestamp
+    await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
+      boardId: args.boardId,
+    });
+
+    return null;
+  },
+});
+
+/**
  * Search cards by title and description.
  * Searches both fields and merges results, removing duplicates.
  * Returns up to 10 results for command menu display.

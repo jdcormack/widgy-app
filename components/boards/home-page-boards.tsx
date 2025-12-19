@@ -10,7 +10,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Globe,
   Lock,
@@ -89,8 +89,26 @@ export function HomePageBoards({ organizationId }: HomePageBoardsProps) {
   // Show loading state while auth is being determined or boards are loading
   if (isAuthLoading || boards === undefined) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="h-8 w-8" />
+      <div className="space-y-6 w-full">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Boards</h1>
+          <Skeleton className="h-9 w-[120px]" />
+        </div>
+        <div className="grid grid-cols-1 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="flex items-center justify-between">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-5 w-32" />
+                  </div>
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -100,7 +118,7 @@ export function HomePageBoards({ organizationId }: HomePageBoardsProps) {
     : "No public boards available.";
 
   return (
-    <div className="space-y-6 max-w-lg w-full mx-auto">
+    <div className="space-y-6 w-full">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Boards</h1>
         {isAuthenticated && (

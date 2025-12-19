@@ -11,6 +11,7 @@ import {
   PaginationContent,
   PaginationItem,
 } from "@/components/ui/pagination";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Kbd } from "@/components/ui/kbd";
 import {
@@ -128,27 +129,48 @@ export function UnassignedCardsSection({
     }
   }, [results]);
 
-  // Don't render for unauthenticated users
+  // Show placeholder for unauthenticated users
   if (!isAuthenticated && !isAuthLoading) {
-    return null;
+    return (
+      <div className="space-y-6 w-full">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Unassigned Cards</h2>
+        </div>
+        <div className="text-center py-12 text-muted-foreground border rounded-lg bg-muted/30">
+          <InboxIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>Sign in to view and manage your cards.</p>
+        </div>
+      </div>
+    );
   }
 
   // Show loading state while auth is being determined or first page is loading
   if (isAuthLoading || status === "LoadingFirstPage") {
     return (
-      <div className="space-y-6 max-w-lg w-full mx-auto">
+      <div className="space-y-6 w-full">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">Unassigned Cards</h2>
+          <Skeleton className="h-9 w-[120px]" />
         </div>
-        <div className="flex items-center justify-center py-12">
-          <Spinner className="h-8 w-8" />
+        <div className="space-y-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="py-4">
+              <div className="px-6 space-y-2">
+                <Skeleton className="h-5 w-3/4" />
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              </div>
+            </Card>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-lg w-full mx-auto">
+    <div className="space-y-6 w-full">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Unassigned Cards</h2>
         <Button onClick={handleCreateCard} disabled={isCreating}>

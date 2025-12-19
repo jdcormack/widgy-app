@@ -42,9 +42,9 @@ export default async function SubdomainPage({
   const members = await getOrganizationMembers();
 
   return (
-    <div className="space-y-8">
-      <UnassignedCardsSection members={members} />
+    <div className="flex flex-col lg:flex-row-reverse gap-10 max-w-5xl w-full mx-auto py-5">
       <HomePageBoards organizationId={subdomainData.organizationId} />
+      <UnassignedCardsSection members={members} />
     </div>
   );
 }

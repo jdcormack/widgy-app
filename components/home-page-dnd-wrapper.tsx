@@ -219,7 +219,10 @@ export function HomePageDndWrapper({
     return (
       <div className="flex flex-col lg:flex-row-reverse gap-10 max-w-5xl w-full mx-auto py-5">
         <HomePageBoards organizationId={organizationId} />
-        <UnassignedCardsSection members={members} />
+        <UnassignedCardsSection
+          members={members}
+          organizationId={organizationId}
+        />
       </div>
     );
   }
@@ -239,6 +242,7 @@ export function HomePageDndWrapper({
         />
         <UnassignedCardsSection
           members={members}
+          organizationId={organizationId}
           isDraggable
           undoneCardId={undoneCardId}
         />

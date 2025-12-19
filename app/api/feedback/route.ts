@@ -11,6 +11,7 @@ const feedbackSchema = z.object({
   description: z.string().min(1).max(5000),
   email: z.email(),
   organizationId: z.string().min(1),
+  website: z.string().optional(), // Honeypot field - should be empty
 });
 
 export async function POST(request: Request) {
@@ -40,7 +41,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const { title, description, email, organizationId } = result.data;
+    const { title, description, email, organizationId, website } = result.data;
+
+    // Honeypot check - if website field is filled, it's a bot
+    // Silently accept to not reveal the honeypot
+    if (website) {
+      return NextResponse.json(
+        { success: true, cardId: "ignored" },
+        { status: 201 }
+      );
+    }
 
     // Verify organization exists
     const organization = await getOrganizationById(organizationId);

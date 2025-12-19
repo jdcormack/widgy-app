@@ -50,6 +50,27 @@ export function getMemberDisplayName(member: OrganizationMember): string {
   return member.identifier;
 }
 
+export function getAuthorDisplayInfo(
+  authorId: string,
+  members: OrganizationMember[]
+): {
+  displayName: string;
+  member: OrganizationMember | null;
+  isFeedbackUser: boolean;
+} {
+  if (authorId.startsWith("feedback:")) {
+    const email = authorId.slice("feedback:".length);
+    return { displayName: email, member: null, isFeedbackUser: true };
+  }
+
+  const member = members.find((m) => m.userId === authorId) ?? null;
+  return {
+    displayName: member ? getMemberDisplayName(member) : "Unknown",
+    member,
+    isFeedbackUser: false,
+  };
+}
+
 export function getStatusDisplayName(status: string): string {
   return STATUS_DISPLAY_NAMES[status] || status;
 }

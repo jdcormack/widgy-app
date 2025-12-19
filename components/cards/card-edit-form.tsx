@@ -45,7 +45,12 @@ import {
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { type OrganizationMember } from "@/app/actions";
 import { cn } from "@/lib/utils";
-import { MemberAvatar, getMemberDisplayName } from "./card-details";
+import { Badge } from "@/components/ui/badge";
+import {
+  MemberAvatar,
+  getMemberDisplayName,
+  getAuthorDisplayInfo,
+} from "./card-details";
 
 const formSchema = z.object({
   title: z.string().max(200, "Title is too long"),
@@ -288,7 +293,7 @@ export function CardEditForm({
   onSubmit,
   onCancel,
 }: CardEditFormProps) {
-  const authorMember = members.find((m) => m.userId === card.authorId);
+  const authorInfo = getAuthorDisplayInfo(card.authorId, members);
 
   const form = useForm<CardEditFormValues>({
     resolver: zodResolver(formSchema),
@@ -366,11 +371,21 @@ export function CardEditForm({
             {/* Read-only Author Display */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>Created by</span>
-              {authorMember ? (
+              {authorInfo.isFeedbackUser ? (
                 <>
-                  <MemberAvatar member={authorMember} className="h-6 w-6" />
                   <span className="text-foreground">
-                    {getMemberDisplayName(authorMember)}
+                    {authorInfo.displayName}
+                  </span>
+                  <Badge variant="secondary">Public</Badge>
+                </>
+              ) : authorInfo.member ? (
+                <>
+                  <MemberAvatar
+                    member={authorInfo.member}
+                    className="h-6 w-6"
+                  />
+                  <span className="text-foreground">
+                    {authorInfo.displayName}
                   </span>
                 </>
               ) : (

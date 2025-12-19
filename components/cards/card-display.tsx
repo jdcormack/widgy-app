@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { LayoutGrid, UserIcon } from "lucide-react";
 import { Remark } from "react-remark";
 import { type OrganizationMember } from "@/app/actions";
-import { MemberAvatar, getMemberDisplayName } from "./card-details";
+import {
+  MemberAvatar,
+  getMemberDisplayName,
+  getAuthorDisplayInfo,
+} from "./card-details";
 
 interface Board {
   _id: string;
@@ -36,7 +41,7 @@ export function CardDisplay({
   onEdit,
 }: CardDisplayProps) {
   const assignedMember = members.find((m) => m.userId === card.assignedTo);
-  const authorMember = members.find((m) => m.userId === card.authorId);
+  const authorInfo = getAuthorDisplayInfo(card.authorId, members);
   const selectedBoard = boards.find((b) => b._id === card.boardId);
 
   return (
@@ -107,12 +112,15 @@ export function CardDisplay({
       {/* Created By */}
       <div className="flex items-center gap-2 text-sm text-muted-foregroud">
         <span>Created by</span>
-        {authorMember ? (
+        {authorInfo.isFeedbackUser ? (
           <>
-            <MemberAvatar member={authorMember} className="h-6 w-6" />
-            <span className="text-foreground">
-              {getMemberDisplayName(authorMember)}
-            </span>
+            <span className="text-foreground">{authorInfo.displayName}</span>
+            <Badge variant="secondary">Public</Badge>
+          </>
+        ) : authorInfo.member ? (
+          <>
+            <MemberAvatar member={authorInfo.member} className="h-6 w-6" />
+            <span className="text-foreground">{authorInfo.displayName}</span>
           </>
         ) : (
           <span>Unknown</span>

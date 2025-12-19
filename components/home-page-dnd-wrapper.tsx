@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useMutation, useConvexAuth } from "convex/react";
 import {
   DndContext,
@@ -13,9 +13,11 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
+import { Kbd } from "@/components/ui/kbd";
 import {
   CardDetails,
   type CardDetailsData,
@@ -32,6 +34,14 @@ interface HomePageDndWrapperProps {
   members: OrganizationMember[];
 }
 
+const UNDO_TOAST_DURATION = 5000;
+
+interface LastAssignment {
+  cardId: Id<"cards">;
+  boardName: string;
+  toastId: string | number;
+}
+
 export function HomePageDndWrapper({
   organizationId,
   members,
@@ -39,13 +49,18 @@ export function HomePageDndWrapper({
   const { isAuthenticated } = useConvexAuth();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const assignToBoard = useMutation(api.cards.assignToBoard);
+  const unassignFromBoard = useMutation(api.cards.unassignFromBoard);
 
   const [activeCard, setActiveCard] = useState<CardDetailsData | null>(null);
   const [highlightedBoardId, setHighlightedBoardId] = useState<string | null>(
     null
   );
+  const [undoneCardId, setUndoneCardId] = useState<string | null>(null);
 
-  // Clear highlight after duration
+  // Track last assignment for undo functionality
+  const lastAssignmentRef = useRef<LastAssignment | null>(null);
+
+  // Clear board highlight after duration
   useEffect(() => {
     if (highlightedBoardId) {
       const timer = setTimeout(() => {
@@ -54,6 +69,74 @@ export function HomePageDndWrapper({
       return () => clearTimeout(timer);
     }
   }, [highlightedBoardId]);
+
+  // Clear undone card highlight after duration
+  useEffect(() => {
+    if (undoneCardId) {
+      const timer = setTimeout(() => {
+        setUndoneCardId(null);
+      }, HIGHLIGHT_DURATION);
+      return () => clearTimeout(timer);
+    }
+  }, [undoneCardId]);
+
+  // Undo handler
+  const handleUndo = useCallback(async () => {
+    const lastAssignment = lastAssignmentRef.current;
+    if (!lastAssignment) return;
+
+    try {
+      // Dismiss the toast
+      toast.dismiss(lastAssignment.toastId);
+
+      // Unassign the card from the board
+      await unassignFromBoard({ cardId: lastAssignment.cardId });
+
+      // Highlight the card in the unassigned section
+      setUndoneCardId(lastAssignment.cardId);
+
+      // Clear the last assignment
+      lastAssignmentRef.current = null;
+
+      // Clear board highlight if it's still showing
+      setHighlightedBoardId(null);
+    } catch (error) {
+      console.error("Failed to undo card assignment:", error);
+      toast.error("Failed to undo");
+    }
+  }, [unassignFromBoard]);
+
+  // Keyboard shortcut: press "U" to undo when toast is visible
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input, textarea, or contenteditable
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      // Only trigger undo if there's an active assignment to undo
+      if (
+        e.key === "u" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        lastAssignmentRef.current
+      ) {
+        e.preventDefault();
+        handleUndo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isAuthenticated, handleUndo]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -88,12 +171,43 @@ export function HomePageDndWrapper({
     if (overData?.type === "board") {
       const cardId = active.id as Id<"cards">;
       const boardId = over.id as Id<"boards">;
+      const boardName = overData.board?.name || "board";
 
       try {
         await assignToBoard({ cardId, boardId });
         setHighlightedBoardId(boardId);
+
+        // Show toast with undo button
+        const toastId = toast.success(`Card added to "${boardName}"`, {
+          duration: UNDO_TOAST_DURATION,
+          action: {
+            label: (
+              <span className="inline-flex items-center gap-1.5">
+                Undo
+                <Kbd>U</Kbd>
+              </span>
+            ),
+            onClick: handleUndo,
+          },
+          onDismiss: () => {
+            // Clear last assignment when toast is dismissed
+            if (lastAssignmentRef.current?.toastId === toastId) {
+              lastAssignmentRef.current = null;
+            }
+          },
+          onAutoClose: () => {
+            // Clear last assignment when toast auto-closes
+            if (lastAssignmentRef.current?.toastId === toastId) {
+              lastAssignmentRef.current = null;
+            }
+          },
+        });
+
+        // Store the assignment info for undo
+        lastAssignmentRef.current = { cardId, boardName, toastId };
       } catch (error) {
         console.error("Failed to assign card to board:", error);
+        toast.error("Failed to assign card");
       }
     }
   };
@@ -123,7 +237,11 @@ export function HomePageDndWrapper({
           isDropTarget
           highlightedBoardId={highlightedBoardId}
         />
-        <UnassignedCardsSection members={members} isDraggable />
+        <UnassignedCardsSection
+          members={members}
+          isDraggable
+          undoneCardId={undoneCardId}
+        />
       </div>
 
       <DragOverlay>

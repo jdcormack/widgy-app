@@ -466,6 +466,53 @@ export const assignToBoard = mutation({
 });
 
 /**
+ * Unassign a card from its board (return to unassigned).
+ * Removes the boardId and resets status to "someday".
+ * Requires authentication and org membership.
+ */
+export const unassignFromBoard = mutation({
+  args: {
+    cardId: v.id("cards"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in to unassign a card");
+    }
+
+    const card = await ctx.db.get(args.cardId);
+    if (!card) {
+      throw new Error("Card not found");
+    }
+
+    if (card.organizationId !== identity.org_id) {
+      throw new Error(
+        "Unauthorized: Cannot unassign card from another organization"
+      );
+    }
+
+    const oldBoardId = card.boardId;
+
+    await ctx.db.patch(args.cardId, {
+      boardId: undefined,
+      status: "someday",
+      updatedAt: Date.now(),
+    });
+
+    // Update old board timestamp
+    if (oldBoardId) {
+      await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
+        boardId: oldBoardId,
+      });
+    }
+
+    return null;
+  },
+});
+
+/**
  * Search cards by title and description.
  * Searches both fields and merges results, removing duplicates.
  * Returns up to 10 results for command menu display.

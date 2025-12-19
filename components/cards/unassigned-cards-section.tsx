@@ -34,6 +34,7 @@ interface DraggableCardProps {
   card: CardDetailsData;
   members: OrganizationMember[];
   isHighlighted: boolean;
+  isUndone: boolean;
   isDraggable: boolean;
   onClick: () => void;
   cardRef: (el: HTMLDivElement | null) => void;
@@ -43,6 +44,7 @@ function DraggableCard({
   card,
   members,
   isHighlighted,
+  isUndone,
   isDraggable,
   onClick,
   cardRef,
@@ -72,6 +74,8 @@ function DraggableCard({
         "group cursor-pointer hover:bg-accent/50 transition-all py-4",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
         isHighlighted && "ring-2 ring-primary bg-primary/5 animate-pulse",
+        isUndone &&
+          "ring-2 ring-blue-500 bg-blue-500/10 animate-[pulse_0.5s_ease-in-out_3]",
         isDragging && "opacity-50 ring-2 ring-primary",
         isDraggable && "touch-none"
       )}
@@ -111,11 +115,13 @@ function DraggableCard({
 interface UnassignedCardsSectionProps {
   members: OrganizationMember[];
   isDraggable?: boolean;
+  undoneCardId?: string | null;
 }
 
 export function UnassignedCardsSection({
   members,
   isDraggable = false,
+  undoneCardId = null,
 }: UnassignedCardsSectionProps) {
   const router = useRouter();
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
@@ -146,6 +152,21 @@ export function UnassignedCardsSection({
       return () => clearTimeout(timer);
     }
   }, [highlightedCardId]);
+
+  // Auto-scroll to undone card when it appears
+  useEffect(() => {
+    if (undoneCardId) {
+      // Small delay to allow the card to render
+      const timer = setTimeout(() => {
+        const cardEl = cardRefs.current.get(undoneCardId);
+        if (cardEl) {
+          cardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+          cardEl.focus();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [undoneCardId]);
 
   const handleCreateCard = useCallback(async () => {
     setIsCreating(true);
@@ -282,6 +303,7 @@ export function UnassignedCardsSection({
               card={card}
               members={members}
               isHighlighted={highlightedCardId === card._id}
+              isUndone={undoneCardId === card._id}
               isDraggable={isDraggable}
               onClick={() => handleCardClick(card._id)}
               cardRef={(el) => {

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { getSubdomainData } from "@/lib/subdomains";
 import { rootDomain } from "@/lib/utils";
+import { HomePageBoards } from "@/components/boards";
 
 export async function generateMetadata({
   params,
@@ -22,12 +24,17 @@ export async function generateMetadata({
   };
 }
 
-export default async function SubdomainPage() {
-  return (
-    <>
-      <h1 className="text-5xl font-bold tracking-tight text-gray-900 mb-4">
-        Welcome
-      </h1>
-    </>
-  );
+export default async function SubdomainPage({
+  params,
+}: {
+  params: Promise<{ subdomain: string }>;
+}) {
+  const { subdomain } = await params;
+  const subdomainData = await getSubdomainData(subdomain);
+
+  if (!subdomainData) {
+    notFound();
+  }
+
+  return <HomePageBoards organizationId={subdomainData.organizationId} />;
 }

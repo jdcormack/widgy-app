@@ -51,7 +51,7 @@ export function DeleteCardButton({ className }: DeleteCardButtonProps) {
         className={className}
       >
         <Trash2Icon className="h-4 w-4 mr-2" />
-        Delete
+        Delete Card
       </Button>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

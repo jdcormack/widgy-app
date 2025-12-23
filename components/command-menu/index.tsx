@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
-import { Columns3, IdCard, FileText, Columns3Icon } from "lucide-react";
+import { Columns3, IdCard, MessageSquare, Columns3Icon } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import {
@@ -121,6 +121,12 @@ export function CommandMenu() {
             >
               <IdCard />
               <span>Cards</span>
+            </CommandItem>
+            <CommandItem
+              onSelect={() => runCommand(() => router.push("/feedback"))}
+            >
+              <MessageSquare />
+              <span>Feedback</span>
             </CommandItem>
           </CommandGroup>
         </CommandList>

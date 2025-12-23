@@ -9,7 +9,8 @@ import { getOrganizationById } from "@/lib/organizations";
 const feedbackSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(5000),
-  email: z.email(),
+  email: z.string().email(),
+  category: z.enum(["bug", "feature"]),
   organizationId: z.string().min(1),
   website: z.string().optional(), // Honeypot field - should be empty
 });
@@ -41,13 +42,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const { title, description, email, organizationId, website } = result.data;
+    const { title, description, email, category, organizationId, website } =
+      result.data;
 
     // Honeypot check - if website field is filled, it's a bot
     // Silently accept to not reveal the honeypot
     if (website) {
       return NextResponse.json(
-        { success: true, cardId: "ignored" },
+        { success: true, feedbackId: "ignored" },
         { status: 201 }
       );
     }
@@ -61,15 +63,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create the feedback card in Convex
-    const cardId = await fetchMutation(api.cards.createFeedback, {
+    // Create the feedback in Convex
+    const feedbackId = await fetchMutation(api.feedback.createFromApi, {
       title,
       description,
+      category,
       email,
       organizationId,
+      origin: "api",
     });
 
-    return NextResponse.json({ success: true, cardId }, { status: 201 });
+    return NextResponse.json({ success: true, feedbackId }, { status: 201 });
   } catch (error) {
     console.error("Error creating feedback:", error);
     return NextResponse.json(

@@ -40,4 +40,12 @@ export default defineSchema({
       searchField: "description",
       filterFields: ["organizationId"],
     }),
+
+  comments: defineTable({
+    cardId: v.id("cards"),
+    authorId: v.string(),
+    content: v.string(), // Markdown content
+    organizationId: v.string(),
+    updatedAt: v.optional(v.number()),
+  }).index("by_cardId", ["cardId"]),
 });

@@ -11,17 +11,22 @@ import { CardDisplay } from "./card-display";
 import { CardEditForm, type CardEditFormValues } from "./card-edit-form";
 import { CardDisplaySkeleton } from "./card-display-skeleton";
 import { DeleteCardButton } from "./delete-card-button";
+import { CardComments } from "./card-comments";
 
 interface CardDetailClientProps {
   preloadedCard: Preloaded<typeof api.cards.getById>;
   preloadedBoards: Preloaded<typeof api.boards.listByOrganization>;
+  preloadedComments: Preloaded<typeof api.comments.listByCard>;
   members: OrganizationMember[];
+  currentUserId: string;
 }
 
 export function CardDetailClient({
   preloadedCard,
   preloadedBoards,
+  preloadedComments,
   members,
+  currentUserId,
 }: CardDetailClientProps) {
   const router = useRouter();
   const [isEditMode, setIsEditMode] = useState(false);
@@ -110,6 +115,15 @@ export function CardDetailClient({
           onEdit={() => setIsEditMode(true)}
         />
       )}
+
+      <div className="mt-8">
+        <CardComments
+          cardId={card._id}
+          preloadedComments={preloadedComments}
+          members={members}
+          currentUserId={currentUserId}
+        />
+      </div>
 
       <DeleteCardButton className="mt-4" />
     </>

@@ -134,3 +134,11 @@ export async function getOrganizationMembers(): Promise<OrganizationMember[]> {
     identifier: m.publicUserData?.identifier ?? "",
   }));
 }
+
+/**
+ * Get the current user's ID
+ */
+export async function getCurrentUserId(): Promise<string> {
+  const { userId } = await auth();
+  return userId ?? "";
+}

@@ -5,6 +5,7 @@ import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
+import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
@@ -57,6 +58,7 @@ interface LexicalEditorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  autoFocus?: boolean;
 }
 
 function InitialValuePlugin({
@@ -102,6 +104,7 @@ export function LexicalEditor({
   value,
   onChange,
   placeholder = "Enter description...",
+  autoFocus = false,
 }: LexicalEditorProps) {
   const hasInitialized = useRef(false);
 
@@ -141,6 +144,7 @@ export function LexicalEditor({
           />
         </div>
         <HistoryPlugin />
+        {autoFocus && <AutoFocusPlugin />}
         <ListPlugin />
         <LinkPlugin />
         <ClickableLinkPlugin newTab />

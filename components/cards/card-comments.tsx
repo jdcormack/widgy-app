@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,6 +22,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { CardComment } from "./card-comment";
 import { MemberAvatar, getMemberDisplayName } from "./card-details";
 import { MessageSquareIcon } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { Kbd } from "@/components/ui/kbd";
 
 const commentFormSchema = z.object({
   content: z.string().min(1, "Comment cannot be empty"),
@@ -46,8 +48,34 @@ export function CardComments({
   const createComment = useMutation(api.comments.create);
 
   const [isAddingComment, setIsAddingComment] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const currentMember = members.find((m) => m.userId === currentUserId);
+
+  // Keyboard shortcut: "c" to add comment (desktop only)
+  useEffect(() => {
+    if (!isDesktop) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input or contenteditable
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === "c" && !isAddingComment) {
+        e.preventDefault();
+        setIsAddingComment(true);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isDesktop, isAddingComment]);
 
   const form = useForm<CommentFormValues>({
     resolver: zodResolver(commentFormSchema),
@@ -129,6 +157,7 @@ export function CardComments({
                         value={field.value}
                         onChange={field.onChange}
                         placeholder="Write a comment..."
+                        autoFocus
                       />
                     </FormControl>
                     <FormMessage />
@@ -166,8 +195,8 @@ export function CardComments({
           onClick={() => setIsAddingComment(true)}
           className="w-full"
         >
-          <MessageSquareIcon className="h-4 w-4 mr-2" />
-          Add Comment
+          Comment
+          {isDesktop && <Kbd className="ml-2">C</Kbd>}
         </Button>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 // Custom column validator for return types
 const customColumnValidator = v.object({
@@ -194,12 +195,25 @@ export const remove = mutation({
       .withIndex("by_boardId", (q) => q.eq("boardId", args.boardId))
       .collect();
 
+    const cardDeletionSnapshots = cards.map((card) => ({
+      cardId: card._id,
+      title: card.title,
+      boardId: card.boardId,
+    }));
+
     for (const card of cards) {
       await ctx.db.delete(card._id);
     }
 
     // Delete the board
     await ctx.db.delete(args.boardId);
+
+    // Record card deletions in activity log + feeds after the transaction commits.
+    await ctx.scheduler.runAfter(0, internal.cardEvents.logCardDeletedBatch, {
+      organizationId: identity.org_id as string,
+      actorId: identity.subject,
+      cards: cardDeletionSnapshots,
+    });
 
     return null;
   },

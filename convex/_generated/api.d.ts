@@ -9,8 +9,11 @@
  */
 
 import type * as boards from "../boards.js";
+import type * as cardEvents from "../cardEvents.js";
 import type * as cards from "../cards.js";
 import type * as comments from "../comments.js";
+import type * as feed from "../feed.js";
+import type * as follows from "../follows.js";
 
 import type {
   ApiFromModules,
@@ -20,8 +23,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   boards: typeof boards;
+  cardEvents: typeof cardEvents;
   cards: typeof cards;
   comments: typeof comments;
+  feed: typeof feed;
+  follows: typeof follows;
 }>;
 
 /**

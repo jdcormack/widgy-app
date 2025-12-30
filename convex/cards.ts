@@ -32,6 +32,17 @@ export const create = mutation({
       updatedAt: Date.now(),
     });
 
+    // Record creation in activity log + feed.
+    await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+      organizationId: identity.org_id as string,
+      cardId,
+      boardId: args.boardId,
+      actorId: identity.subject,
+      kind: "card_created",
+      payload: undefined,
+      boardContextIds: args.boardId ? [args.boardId] : [],
+    });
+
     // Update board timestamp if card is added to a board
     if (args.boardId) {
       await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
@@ -243,6 +254,9 @@ export const update = mutation({
 
     const oldBoardId = card.boardId;
     const newBoardId = args.boardId;
+    const oldStatus = card.status;
+    const oldAssignedTo = card.assignedTo;
+    const oldTitle = card.title;
 
     // Only include fields that are explicitly provided to avoid overwriting with undefined
     const updates: {
@@ -270,6 +284,71 @@ export const update = mutation({
     }
 
     await ctx.db.patch(args.cardId, updates);
+
+    // Record activity events (scheduled to avoid slowing the mutation).
+    if (args.title !== oldTitle) {
+      await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+        organizationId: identity.org_id as string,
+        cardId: args.cardId,
+        boardId: newBoardId ?? oldBoardId,
+        actorId: identity.subject,
+        kind: "card_title_changed",
+        payload: { title: args.title },
+        boardContextIds: (newBoardId ?? oldBoardId) ? [newBoardId ?? oldBoardId!] : [],
+      });
+    }
+
+    if (
+      "assignedTo" in args &&
+      args.assignedTo !== undefined &&
+      args.assignedTo !== oldAssignedTo
+    ) {
+      await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+        organizationId: identity.org_id as string,
+        cardId: args.cardId,
+        boardId: newBoardId ?? oldBoardId,
+        actorId: identity.subject,
+        kind: "card_assignee_changed",
+        payload: { toAssignee: args.assignedTo ?? null },
+        boardContextIds: (newBoardId ?? oldBoardId) ? [newBoardId ?? oldBoardId!] : [],
+      });
+    }
+
+    if (
+      "status" in args &&
+      args.status !== undefined &&
+      args.status !== oldStatus
+    ) {
+      await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+        organizationId: identity.org_id as string,
+        cardId: args.cardId,
+        boardId: newBoardId ?? oldBoardId,
+        actorId: identity.subject,
+        kind: "card_status_changed",
+        payload: { toStatus: args.status },
+        boardContextIds: (newBoardId ?? oldBoardId) ? [newBoardId ?? oldBoardId!] : [],
+      });
+    }
+
+    if ("boardId" in args && newBoardId !== oldBoardId) {
+      const boardContextIds = [
+        ...(oldBoardId ? [oldBoardId] : []),
+        ...(newBoardId ? [newBoardId] : []),
+      ];
+
+      await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+        organizationId: identity.org_id as string,
+        cardId: args.cardId,
+        boardId: newBoardId,
+        actorId: identity.subject,
+        kind: "card_board_changed",
+        payload: {
+          fromBoardId: oldBoardId ?? null,
+          toBoardId: newBoardId ?? null,
+        },
+        boardContextIds,
+      });
+    }
 
     // Update board timestamps for affected boards
     if (oldBoardId) {
@@ -320,6 +399,17 @@ export const remove = mutation({
         boardId: card.boardId,
       });
     }
+
+    // Record deletion in activity log + feed.
+    await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+      organizationId: identity.org_id as string,
+      cardId: args.cardId,
+      boardId: card.boardId,
+      actorId: identity.subject,
+      kind: "card_deleted",
+      payload: { deletedTitle: card.title },
+      boardContextIds: card.boardId ? [card.boardId] : [],
+    });
 
     await ctx.db.delete(args.cardId);
 
@@ -398,6 +488,17 @@ export const updateStatus = mutation({
       updatedAt: Date.now(),
     });
 
+    // Record status change in activity log + feed.
+    await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+      organizationId: identity.org_id as string,
+      cardId: args.cardId,
+      boardId: card.boardId,
+      actorId: identity.subject,
+      kind: "card_status_changed",
+      payload: { toStatus: args.status },
+      boardContextIds: card.boardId ? [card.boardId] : [],
+    });
+
     // Update board timestamp
     if (card.boardId) {
       await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
@@ -456,6 +557,30 @@ export const assignToBoard = mutation({
       updatedAt: Date.now(),
     });
 
+    // Record board move + status reset in activity log + feed.
+    await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+      organizationId: identity.org_id as string,
+      cardId: args.cardId,
+      boardId: args.boardId,
+      actorId: identity.subject,
+      kind: "card_board_changed",
+      payload: { fromBoardId: card.boardId ?? null, toBoardId: args.boardId },
+      boardContextIds: [
+        ...(card.boardId ? [card.boardId] : []),
+        args.boardId,
+      ],
+    });
+
+    await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+      organizationId: identity.org_id as string,
+      cardId: args.cardId,
+      boardId: args.boardId,
+      actorId: identity.subject,
+      kind: "card_status_changed",
+      payload: { toStatus: "someday" },
+      boardContextIds: [args.boardId],
+    });
+
     // Update board timestamp
     await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
       boardId: args.boardId,
@@ -499,6 +624,27 @@ export const unassignFromBoard = mutation({
       boardId: undefined,
       status: "someday",
       updatedAt: Date.now(),
+    });
+
+    // Record unassignment (move out of board) + status reset.
+    await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+      organizationId: identity.org_id as string,
+      cardId: args.cardId,
+      boardId: undefined,
+      actorId: identity.subject,
+      kind: "card_board_changed",
+      payload: { fromBoardId: oldBoardId ?? null, toBoardId: null },
+      boardContextIds: oldBoardId ? [oldBoardId] : [],
+    });
+
+    await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+      organizationId: identity.org_id as string,
+      cardId: args.cardId,
+      boardId: undefined,
+      actorId: identity.subject,
+      kind: "card_status_changed",
+      payload: { toStatus: "someday" },
+      boardContextIds: oldBoardId ? [oldBoardId] : [],
     });
 
     // Update old board timestamp
@@ -593,7 +739,7 @@ export const createFeedback = mutation({
   },
   returns: v.id("cards"),
   handler: async (ctx, args) => {
-    return await ctx.db.insert("cards", {
+    const cardId = await ctx.db.insert("cards", {
       title: args.title,
       description: args.description,
       authorId: `feedback:${args.email}`,
@@ -601,5 +747,17 @@ export const createFeedback = mutation({
       status: "someday",
       updatedAt: Date.now(),
     });
+
+    await ctx.scheduler.runAfter(0, internal.cardEvents.log, {
+      organizationId: args.organizationId,
+      cardId,
+      boardId: undefined,
+      actorId: `feedback:${args.email}`,
+      kind: "card_created",
+      payload: undefined,
+      boardContextIds: [],
+    });
+
+    return cardId;
   },
 });

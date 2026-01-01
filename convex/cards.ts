@@ -271,6 +271,37 @@ export const update = mutation({
 
     await ctx.db.patch(args.cardId, updates);
 
+    // Log title change event if title changed
+    if (card.title !== args.title && args.title !== "") {
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "card_title_changed" as const,
+        actorId: identity.subject,
+        cardId: args.cardId,
+        boardId: card.boardId,
+        organizationId: identity.org_id as string,
+        metadata: {
+          oldValue: card.title,
+          newValue: args.title,
+        },
+      });
+    }
+
+    // Log status change event if status changed
+    if (args.status !== undefined && card.status !== args.status) {
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "card_status_changed" as const,
+        actorId: identity.subject,
+        cardId: args.cardId,
+        boardId: card.boardId,
+        organizationId: identity.org_id as string,
+        metadata: {
+          oldStatus: card.status,
+          newStatus: args.status,
+          cardTitle: args.title || card.title,
+        },
+      });
+    }
+
     // Update board timestamps for affected boards
     if (oldBoardId) {
       await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
@@ -314,11 +345,33 @@ export const remove = mutation({
       );
     }
 
+    // Log card deleted event before deleting
+    await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+      eventType: "card_deleted" as const,
+      actorId: identity.subject,
+      cardId: args.cardId,
+      boardId: card.boardId,
+      organizationId: identity.org_id as string,
+      metadata: {
+        cardTitle: card.title,
+      },
+    });
+
     // Update board timestamp if card was on a board
     if (card.boardId) {
       await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
         boardId: card.boardId,
       });
+    }
+
+    // Delete any card mutes for this card
+    const cardMutes = await ctx.db
+      .query("cardMutes")
+      .withIndex("by_cardId", (q) => q.eq("cardId", args.cardId))
+      .collect();
+
+    for (const mute of cardMutes) {
+      await ctx.db.delete(mute._id);
     }
 
     await ctx.db.delete(args.cardId);
@@ -393,10 +446,28 @@ export const updateStatus = mutation({
       );
     }
 
+    const oldStatus = card.status;
+
     await ctx.db.patch(args.cardId, {
       status: args.status,
       updatedAt: Date.now(),
     });
+
+    // Log status change event
+    if (oldStatus !== args.status) {
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "card_status_changed" as const,
+        actorId: identity.subject,
+        cardId: args.cardId,
+        boardId: card.boardId,
+        organizationId: identity.org_id as string,
+        metadata: {
+          oldStatus: oldStatus,
+          newStatus: args.status,
+          cardTitle: card.title,
+        },
+      });
+    }
 
     // Update board timestamp
     if (card.boardId) {
@@ -456,6 +527,19 @@ export const assignToBoard = mutation({
       updatedAt: Date.now(),
     });
 
+    // Log card moved to board event
+    await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+      eventType: "card_moved_to_board" as const,
+      actorId: identity.subject,
+      cardId: args.cardId,
+      boardId: args.boardId,
+      organizationId: identity.org_id as string,
+      metadata: {
+        cardTitle: card.title,
+        boardName: board.name,
+      },
+    });
+
     // Update board timestamp
     await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
       boardId: args.boardId,
@@ -495,14 +579,34 @@ export const unassignFromBoard = mutation({
 
     const oldBoardId = card.boardId;
 
+    // Get board name for logging before we lose the reference
+    let boardName: string | undefined;
+    if (oldBoardId) {
+      const oldBoard = await ctx.db.get(oldBoardId);
+      boardName = oldBoard?.name;
+    }
+
     await ctx.db.patch(args.cardId, {
       boardId: undefined,
       status: "someday",
       updatedAt: Date.now(),
     });
 
-    // Update old board timestamp
+    // Log card removed from board event
     if (oldBoardId) {
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "card_removed_from_board" as const,
+        actorId: identity.subject,
+        cardId: args.cardId,
+        boardId: oldBoardId,
+        organizationId: identity.org_id as string,
+        metadata: {
+          cardTitle: card.title,
+          boardName: boardName,
+        },
+      });
+
+      // Update old board timestamp
       await ctx.scheduler.runAfter(0, internal.boards.updateTimestamp, {
         boardId: oldBoardId,
       });

@@ -30,8 +30,15 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { GlobeIcon, GlobeLock, Trash2 } from "lucide-react";
+import { BoardWatchersList } from "@/components/activity";
 
 const formSchema = z.object({
   name: z
@@ -214,6 +221,20 @@ export function BoardSettingsForm({ preloadedBoard }: BoardSettingsFormProps) {
             </div>
           </form>
         </Form>
+
+        {/* Watchers Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Watchers</CardTitle>
+            <CardDescription>
+              Users watching this board will be automatically subscribed to new
+              cards and receive activity updates.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BoardWatchersList boardId={board._id} />
+          </CardContent>
+        </Card>
 
         <div className="max-w-2xl mx-auto flex items-center justify-center">
           <Button

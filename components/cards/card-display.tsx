@@ -12,6 +12,8 @@ import {
   getMemberDisplayName,
   getAuthorDisplayInfo,
 } from "./card-details";
+import { CardWatchers } from "@/components/activity";
+import type { Id } from "@/convex/_generated/dataModel";
 
 interface Board {
   _id: string;
@@ -142,6 +144,15 @@ export function CardDisplay({
             <span className="text-muted-foregroud">No board (untriaged)</span>
           )}
         </div>
+      </div>
+
+      {/* Watchers */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-muted-foregroud">Watchers</h3>
+        <CardWatchers
+          cardId={card._id as Id<"cards">}
+          boardId={card.boardId as Id<"boards"> | undefined}
+        />
       </div>
 
       <div className="flex gap-3 justify-center">

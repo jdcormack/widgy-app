@@ -1,5 +1,6 @@
 import Logo from "@/components/logo";
 import { AuthButtons } from "./auth-buttons";
+import { ActivityButton } from "./activity-button";
 import { CommandMenu } from "@/components/command-menu";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
@@ -14,8 +15,11 @@ export async function PageHeader() {
       <Link href="/" className="flex items-center gap-4">
         <Logo />
       </Link>
-      {isAuthenticated ? <CommandMenu /> : null}
-      <AuthButtons />
+      <div className="flex items-center gap-2">
+        {isAuthenticated ? <CommandMenu /> : null}
+        <ActivityButton />
+        <AuthButtons />
+      </div>
     </header>
   );
 }

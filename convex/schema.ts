@@ -97,4 +97,60 @@ export default defineSchema({
   })
     .index("by_feedbackId", ["feedbackId"])
     .index("by_cardId", ["cardId"]),
+
+  // Activity feed tables
+  boardSubscriptions: defineTable({
+    boardId: v.id("boards"),
+    userId: v.string(), // Clerk user ID
+    organizationId: v.string(),
+  })
+    .index("by_boardId", ["boardId"])
+    .index("by_userId_and_organizationId", ["userId", "organizationId"])
+    .index("by_boardId_and_userId", ["boardId", "userId"]),
+
+  // Card mutes: users who have opted out of a specific card's updates
+  // (while still being subscribed to the board)
+  cardMutes: defineTable({
+    cardId: v.id("cards"),
+    userId: v.string(), // Clerk user ID
+    organizationId: v.string(),
+  })
+    .index("by_cardId", ["cardId"])
+    .index("by_userId_and_organizationId", ["userId", "organizationId"])
+    .index("by_cardId_and_userId", ["cardId", "userId"]),
+
+  activityEvents: defineTable({
+    eventType: v.union(
+      v.literal("card_status_changed"),
+      v.literal("card_title_changed"),
+      v.literal("card_comment_added"),
+      v.literal("card_deleted"),
+      v.literal("card_moved_to_board"),
+      v.literal("card_removed_from_board"),
+      v.literal("card_assigned"),
+      v.literal("user_subscribed_to_board"),
+      v.literal("user_unsubscribed_from_board"),
+      v.literal("user_muted_card"),
+      v.literal("user_unmuted_card")
+    ),
+    actorId: v.string(), // Clerk user ID of the user who performed the action
+    boardId: v.optional(v.id("boards")),
+    cardId: v.optional(v.id("cards")),
+    commentId: v.optional(v.id("comments")),
+    organizationId: v.string(),
+    metadata: v.optional(
+      v.object({
+        oldValue: v.optional(v.string()),
+        newValue: v.optional(v.string()),
+        oldStatus: v.optional(v.string()),
+        newStatus: v.optional(v.string()),
+        targetUserId: v.optional(v.string()),
+        cardTitle: v.optional(v.string()), // For context when card is deleted
+        boardName: v.optional(v.string()), // For context in activity feed
+      })
+    ),
+  })
+    .index("by_organizationId", ["organizationId"])
+    .index("by_cardId", ["cardId"])
+    .index("by_boardId", ["boardId"]),
 });

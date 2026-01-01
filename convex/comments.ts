@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 const commentValidator = v.object({
   _id: v.id("comments"),
@@ -46,6 +47,19 @@ export const create = mutation({
       content: args.content,
       organizationId: identity.org_id as string,
       updatedAt: Date.now(),
+    });
+
+    // Log comment added event
+    await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+      eventType: "card_comment_added" as const,
+      actorId: identity.subject,
+      cardId: args.cardId,
+      commentId: commentId,
+      boardId: card.boardId,
+      organizationId: identity.org_id as string,
+      metadata: {
+        cardTitle: card.title,
+      },
     });
 
     return commentId;

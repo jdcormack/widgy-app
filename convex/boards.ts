@@ -1,5 +1,6 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 // Custom column validator for return types
 const customColumnValidator = v.object({
@@ -31,6 +32,13 @@ export const create = mutation({
       visibility: args.visibility,
       createdBy: identity.subject,
       updatedAt: Date.now(),
+    });
+
+    // Auto-subscribe the creator to the board
+    await ctx.scheduler.runAfter(0, internal.activity.subscribeUserToBoard, {
+      boardId,
+      userId: identity.subject,
+      organizationId: identity.org_id as string,
     });
 
     return boardId;

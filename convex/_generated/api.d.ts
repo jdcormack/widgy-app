@@ -11,6 +11,8 @@
 import type * as boards from "../boards.js";
 import type * as cards from "../cards.js";
 import type * as comments from "../comments.js";
+import type * as feedback from "../feedback.js";
+import type * as feedbackSettings from "../feedbackSettings.js";
 
 import type {
   ApiFromModules,
@@ -22,6 +24,8 @@ declare const fullApi: ApiFromModules<{
   boards: typeof boards;
   cards: typeof cards;
   comments: typeof comments;
+  feedback: typeof feedback;
+  feedbackSettings: typeof feedbackSettings;
 }>;
 
 /**

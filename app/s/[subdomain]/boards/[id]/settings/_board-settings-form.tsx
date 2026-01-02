@@ -57,8 +57,9 @@ import {
   Users,
   UserPlus,
   UserMinus,
+  Eye,
+  EyeOff,
 } from "lucide-react";
-import { BoardWatchersList } from "@/components/activity";
 import { type OrganizationMember } from "@/app/actions";
 import { useUser } from "@clerk/nextjs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -110,6 +111,10 @@ export function BoardSettingsForm({
   const removeEditor = useMutation(api.boards.removeEditor);
   const addOwner = useMutation(api.boards.addOwner);
   const removeOwner = useMutation(api.boards.removeOwner);
+  const addBoardWatcher = useMutation(api.activity.addBoardWatcher);
+  const removeBoardWatcher = useMutation(api.activity.removeBoardWatcher);
+  const subscribeToBoard = useMutation(api.activity.subscribeToBoard);
+  const unsubscribeFromBoard = useMutation(api.activity.unsubscribeFromBoard);
 
   const canEdit = useQuery(
     api.boards.canEdit,
@@ -127,6 +132,14 @@ export function BoardSettingsForm({
     api.boards.getEditors,
     board ? { boardId: board._id } : "skip"
   );
+  const watchers = useQuery(
+    api.activity.getBoardSubscribers,
+    board ? { boardId: board._id } : "skip"
+  );
+  const isSubscribed = useQuery(
+    api.activity.isSubscribedToBoard,
+    board ? { boardId: board._id } : "skip"
+  );
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmationText, setConfirmationText] = useState("");
@@ -134,6 +147,7 @@ export function BoardSettingsForm({
   const [viewerSelectorOpen, setViewerSelectorOpen] = useState(false);
   const [editorSelectorOpen, setEditorSelectorOpen] = useState(false);
   const [ownerSelectorOpen, setOwnerSelectorOpen] = useState(false);
+  const [watcherSelectorOpen, setWatcherSelectorOpen] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -233,6 +247,38 @@ export function BoardSettingsForm({
     }
   };
 
+  const handleAddWatcher = async (userId: string) => {
+    if (!board) return;
+    try {
+      await addBoardWatcher({ boardId: board._id, userId });
+      setWatcherSelectorOpen(false);
+    } catch (error) {
+      console.error("Failed to add watcher:", error);
+    }
+  };
+
+  const handleRemoveWatcher = async (userId: string) => {
+    if (!board) return;
+    try {
+      await removeBoardWatcher({ boardId: board._id, userId });
+    } catch (error) {
+      console.error("Failed to remove watcher:", error);
+    }
+  };
+
+  const handleToggleSubscription = async () => {
+    if (!board) return;
+    try {
+      if (isSubscribed) {
+        await unsubscribeFromBoard({ boardId: board._id });
+      } else {
+        await subscribeToBoard({ boardId: board._id });
+      }
+    } catch (error) {
+      console.error("Failed to toggle subscription:", error);
+    }
+  };
+
   const handleDelete = async () => {
     if (!board || confirmationText !== board.name) return;
 
@@ -258,7 +304,9 @@ export function BoardSettingsForm({
     canEdit === undefined ||
     isOwner === undefined ||
     owners === undefined ||
-    editors === undefined
+    editors === undefined ||
+    watchers === undefined ||
+    isSubscribed === undefined
   ) {
     return (
       <div className="space-y-6">
@@ -759,14 +807,142 @@ export function BoardSettingsForm({
         {/* Watchers Section */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Watchers</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Watchers
+            </CardTitle>
             <CardDescription>
               Users watching this board will be automatically subscribed to new
               cards and receive activity updates.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <BoardWatchersList boardId={board._id} />
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  {watchers.length} watcher{watchers.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {canEdit && (
+                  <Popover
+                    open={watcherSelectorOpen}
+                    onOpenChange={setWatcherSelectorOpen}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button size="sm" variant="outline">
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Add watcher
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0" align="end">
+                      <Command>
+                        <CommandInput placeholder="Search members..." />
+                        <CommandList>
+                          <CommandEmpty>No members found.</CommandEmpty>
+                          <CommandGroup>
+                            {members
+                              .filter((m) => !watchers.includes(m.userId))
+                              .map((member) => (
+                                <CommandItem
+                                  key={member.userId}
+                                  onSelect={() =>
+                                    handleAddWatcher(member.userId)
+                                  }
+                                >
+                                  <Avatar className="mr-2 h-6 w-6">
+                                    <AvatarImage
+                                      src={member.imageUrl ?? undefined}
+                                    />
+                                    <AvatarFallback>
+                                      {getMemberDisplayName(member)
+                                        .split(" ")
+                                        .map((n) => n[0])
+                                        .join("")
+                                        .toUpperCase()
+                                        .slice(0, 2)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  {getMemberDisplayName(member)}
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+                <Button
+                  variant={isSubscribed ? "outline" : "default"}
+                  size="sm"
+                  onClick={handleToggleSubscription}
+                >
+                  {isSubscribed ? (
+                    <>
+                      <EyeOff className="h-4 w-4 mr-2" />
+                      Unwatch
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-4 w-4 mr-2" />
+                      Watch
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+            {watchers.length > 0 ? (
+              <div className="space-y-2">
+                {watchers.map((userId) => {
+                  const member = members.find((m) => m.userId === userId);
+                  if (!member) return null;
+                  const isCurrentUser = userId === user?.id;
+                  return (
+                    <div
+                      key={userId}
+                      className="flex items-center justify-between p-2 rounded-lg border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={member.imageUrl ?? undefined} />
+                          <AvatarFallback>
+                            {getMemberDisplayName(member)
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">
+                            {getMemberDisplayName(member)}
+                          </span>
+                          {isCurrentUser && (
+                            <Badge variant="secondary">You</Badge>
+                          )}
+                        </div>
+                      </div>
+                      {!isCurrentUser && canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleRemoveWatcher(userId)}
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No one is watching this board yet.
+              </p>
+            )}
           </CardContent>
         </Card>
 

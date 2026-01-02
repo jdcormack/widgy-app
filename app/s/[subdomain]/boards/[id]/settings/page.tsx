@@ -4,6 +4,7 @@ import { preloadQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { getSubdomainData } from "@/lib/subdomains";
+import { getOrganizationMembers } from "@/app/actions";
 import { BoardSettingsForm } from "./_board-settings-form";
 
 export default async function BoardSettingsPage({
@@ -26,13 +27,16 @@ export default async function BoardSettingsPage({
     redirect(`/s/${subdomain}/boards/${id}`);
   }
 
-  const preloadedBoard = await preloadQuery(api.boards.getById, {
-    boardId: id as Id<"boards">,
-  });
+  const [preloadedBoard, members] = await Promise.all([
+    preloadQuery(api.boards.getById, {
+      boardId: id as Id<"boards">,
+    }),
+    getOrganizationMembers(),
+  ]);
 
   return (
     <div className="w-full max-w-xl mx-auto">
-      <BoardSettingsForm preloadedBoard={preloadedBoard} />
+      <BoardSettingsForm preloadedBoard={preloadedBoard} members={members} />
     </div>
   );
 }

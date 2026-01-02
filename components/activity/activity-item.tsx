@@ -12,6 +12,9 @@ import {
   RefreshCw,
   Trash2,
   UserPlus,
+  Crown,
+  Edit,
+  Users,
 } from "lucide-react";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 
@@ -26,7 +29,13 @@ type EventType =
   | "user_subscribed_to_board"
   | "user_unsubscribed_from_board"
   | "user_muted_card"
-  | "user_unmuted_card";
+  | "user_unmuted_card"
+  | "user_added_to_board"
+  | "user_added_as_board_editor"
+  | "user_removed_as_board_editor"
+  | "user_added_as_board_owner"
+  | "user_removed_as_board_owner"
+  | "board_ownership_transferred";
 
 interface ActivityEvent {
   _id: Id<"activityEvents">;
@@ -75,6 +84,15 @@ function getEventIcon(eventType: EventType) {
     case "user_unsubscribed_from_board":
     case "user_muted_card":
       return <BellOff className="h-4 w-4" />;
+    case "user_added_to_board":
+      return <Users className="h-4 w-4" />;
+    case "user_added_as_board_editor":
+    case "user_removed_as_board_editor":
+      return <Edit className="h-4 w-4" />;
+    case "user_added_as_board_owner":
+    case "user_removed_as_board_owner":
+    case "board_ownership_transferred":
+      return <Crown className="h-4 w-4" />;
     default:
       return <RefreshCw className="h-4 w-4" />;
   }
@@ -223,6 +241,55 @@ export function ActivityItem({ event, subdomain }: ActivityItemProps) {
             <span className="font-medium">
               {metadata?.cardTitle || "Untitled"}
             </span>
+          </p>
+        );
+
+      case "user_added_to_board":
+        return (
+          <p className="text-sm">
+            Added to board{" "}
+            <span className="font-medium">{metadata?.boardName}</span>
+          </p>
+        );
+
+      case "user_added_as_board_editor":
+        return (
+          <p className="text-sm">
+            Added as an editor to board{" "}
+            <span className="font-medium">{metadata?.boardName}</span>
+          </p>
+        );
+
+      case "user_removed_as_board_editor":
+        return (
+          <p className="text-sm">
+            Removed as an editor from board{" "}
+            <span className="font-medium">{metadata?.boardName}</span>
+          </p>
+        );
+
+      case "user_added_as_board_owner":
+        return (
+          <p className="text-sm">
+            Added as an owner to board{" "}
+            <span className="font-medium">{metadata?.boardName}</span>
+          </p>
+        );
+
+      case "user_removed_as_board_owner":
+        return (
+          <p className="text-sm">
+            Removed as an owner from board{" "}
+            <span className="font-medium">{metadata?.boardName}</span>
+          </p>
+        );
+
+      case "board_ownership_transferred":
+        return (
+          <p className="text-sm">
+            Ownership of board{" "}
+            <span className="font-medium">{metadata?.boardName}</span>{" "}
+            transferred
           </p>
         );
 

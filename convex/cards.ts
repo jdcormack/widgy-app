@@ -7,6 +7,7 @@ import { internal } from "./_generated/api";
  * Create a new empty card.
  * Sets the authorId to the current user automatically.
  * Optionally accepts a boardId and status for kanban boards.
+ * If boardId is provided, only editors or owners can create cards.
  */
 export const create = mutation({
   args: {
@@ -19,6 +20,23 @@ export const create = mutation({
 
     if (!identity || !identity.org_id) {
       throw new Error("Unauthorized: Must be logged in to create a card");
+    }
+
+    // If creating a card for a board, check edit permissions
+    if (args.boardId) {
+      const board = await ctx.db.get(args.boardId);
+      if (!board) {
+        throw new Error("Board not found");
+      }
+
+      // Check if user is owner or editor
+      const isOwner = board.ownerIds.includes(identity.subject);
+      const isEditor = board.editorIds?.includes(identity.subject) ?? false;
+      if (!isOwner && !isEditor) {
+        throw new Error(
+          "Unauthorized: Only editors or owners can create cards on this board"
+        );
+      }
     }
 
     const cardId = await ctx.db.insert("cards", {

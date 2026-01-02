@@ -12,8 +12,15 @@ export default defineSchema({
   boards: defineTable({
     name: v.string(),
     organizationId: v.string(),
-    visibility: v.union(v.literal("public"), v.literal("private")),
+    visibility: v.union(
+      v.literal("public"),
+      v.literal("private"),
+      v.literal("restricted")
+    ),
     createdBy: v.string(),
+    ownerIds: v.array(v.string()), // Board owners (minimum 1, initially set to creator)
+    viewerIds: v.optional(v.array(v.string())), // Users who can view restricted boards
+    editorIds: v.optional(v.array(v.string())), // Users who can edit the board (owners are implicitly editors)
     updatedAt: v.number(),
     customColumns: v.optional(v.array(customColumnValidator)),
   }).index("by_organizationId", ["organizationId"]),
@@ -131,7 +138,13 @@ export default defineSchema({
       v.literal("user_subscribed_to_board"),
       v.literal("user_unsubscribed_from_board"),
       v.literal("user_muted_card"),
-      v.literal("user_unmuted_card")
+      v.literal("user_unmuted_card"),
+      v.literal("user_added_to_board"),
+      v.literal("user_added_as_board_editor"),
+      v.literal("user_removed_as_board_editor"),
+      v.literal("user_added_as_board_owner"),
+      v.literal("user_removed_as_board_owner"),
+      v.literal("board_ownership_transferred")
     ),
     actorId: v.string(), // Clerk user ID of the user who performed the action
     boardId: v.optional(v.id("boards")),

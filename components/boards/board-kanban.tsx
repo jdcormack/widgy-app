@@ -24,7 +24,9 @@ import { KanbanCard, type KanbanCardData } from "./kanban-card";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
-import { PlusIcon, GlobeIcon, Settings } from "lucide-react";
+import { PlusIcon, GlobeIcon, Settings, Crown } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getMemberDisplayName } from "@/components/cards/card-details";
 import {
   Tooltip,
   TooltipTrigger,
@@ -56,6 +58,8 @@ export function BoardKanban({
   const router = useRouter();
   const board = useQuery(api.boards.getById, { boardId });
   const cards = useQuery(api.cards.listByBoard, { boardId });
+  const owners = useQuery(api.boards.getOwners, { boardId });
+  const canEdit = useQuery(api.boards.canEdit, { boardId });
   const updateStatus = useMutation(api.cards.updateStatus);
   const createCard = useMutation(api.cards.create);
 
@@ -180,7 +184,7 @@ export function BoardKanban({
   };
 
   const handleCreateCard = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !canEdit) return;
 
     setIsCreating(true);
     try {
@@ -194,11 +198,11 @@ export function BoardKanban({
     } finally {
       setIsCreating(false);
     }
-  }, [isAuthenticated, createCard, boardId]);
+  }, [isAuthenticated, canEdit, createCard, boardId]);
 
   // Keyboard shortcut: press "C" to create a card
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !canEdit) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in an input, textarea, or contenteditable
@@ -219,9 +223,9 @@ export function BoardKanban({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAuthenticated, handleCreateCard]);
+  }, [isAuthenticated, canEdit, handleCreateCard]);
 
-  if (board === undefined || cards === undefined) {
+  if (board === undefined || cards === undefined || canEdit === undefined) {
     return (
       <div className="flex items-center justify-center py-12">
         <Spinner className="h-8 w-8" />
@@ -242,25 +246,50 @@ export function BoardKanban({
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black capitalize">{board.name}</h1>
-            {board.visibility === "public" && (
-              <Tooltip>
-                <TooltipTrigger>
-                  <GlobeIcon className="h-4 w-4 text-green-500" />
-                </TooltipTrigger>
-                <TooltipContent>Publicly accessible</TooltipContent>
-              </Tooltip>
-            )}
-            {isAuthenticated && (
-              <Button variant="ghost" size="icon" asChild>
-                <Link href={`/boards/${boardId}/settings`}>
-                  <Settings className="h-4 w-4" />
-                </Link>
-              </Button>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-black capitalize">{board.name}</h1>
+              {board.visibility === "public" && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <GlobeIcon className="h-4 w-4 text-green-500" />
+                  </TooltipTrigger>
+                  <TooltipContent>Publicly accessible</TooltipContent>
+                </Tooltip>
+              )}
+              {isAuthenticated && (
+                <Button variant="ghost" size="icon" asChild>
+                  <Link href={`/boards/${boardId}/settings`}>
+                    <Settings className="h-4 w-4" />
+                  </Link>
+                </Button>
+              )}
+            </div>
+            {owners && owners.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Crown className="h-3 w-3" />
+                <span>Owned by:</span>
+                {owners.map((ownerId, index) => {
+                  const owner = members.find((m) => m.userId === ownerId);
+                  if (!owner) return null;
+                  return (
+                    <span key={ownerId} className="flex items-center gap-1">
+                      {index > 0 && <span>,</span>}
+                      <span className="font-medium text-foreground">
+                        {getMemberDisplayName(owner)}
+                      </span>
+                      {owner.identifier && (
+                        <span className="text-muted-foreground">
+                          ({owner.identifier})
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
             )}
           </div>
-          {isAuthenticated && (
+          {isAuthenticated && canEdit && (
             <Button onClick={handleCreateCard} disabled={isCreating}>
               Create Card
               {isCreating ? (
@@ -292,15 +321,40 @@ export function BoardKanban({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-3xl font-black capitalize">{board.name}</h1>
-          {board.visibility === "public" && (
-            <Tooltip>
-              <TooltipTrigger>
-                <GlobeIcon className="size-6 text-green-500" />
-              </TooltipTrigger>
-              <TooltipContent>Board is publicly accessible</TooltipContent>
-            </Tooltip>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-black capitalize">{board.name}</h1>
+            {board.visibility === "public" && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <GlobeIcon className="size-6 text-green-500" />
+                </TooltipTrigger>
+                <TooltipContent>Board is publicly accessible</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+          {owners && owners.length > 0 && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Crown className="h-4 w-4" />
+              <span>Owned by:</span>
+              {owners.map((ownerId, index) => {
+                const owner = members.find((m) => m.userId === ownerId);
+                if (!owner) return null;
+                return (
+                  <span key={ownerId} className="flex items-center gap-1">
+                    {index > 0 && <span>,</span>}
+                    <span className="font-medium text-foreground">
+                      {getMemberDisplayName(owner)}
+                    </span>
+                    {owner.identifier && (
+                      <span className="text-muted-foreground">
+                        ({owner.identifier})
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
           )}
         </div>
 
@@ -311,17 +365,19 @@ export function BoardKanban({
                 <Settings className="size-6" />
               </Link>
             </Button>
-            <Button onClick={handleCreateCard} disabled={isCreating}>
-              Create Card
-              {isCreating ? (
-                <Spinner className="h-4 w-4" />
-              ) : (
-                <>
-                  <Kbd className="ml-2 hidden sm:inline-flex">C</Kbd>
-                  <PlusIcon className="h-4 w-4 sm:hidden" />
-                </>
-              )}
-            </Button>
+            {canEdit && (
+              <Button onClick={handleCreateCard} disabled={isCreating}>
+                Create Card
+                {isCreating ? (
+                  <Spinner className="h-4 w-4" />
+                ) : (
+                  <>
+                    <Kbd className="ml-2 hidden sm:inline-flex">C</Kbd>
+                    <PlusIcon className="h-4 w-4 sm:hidden" />
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         )}
       </div>

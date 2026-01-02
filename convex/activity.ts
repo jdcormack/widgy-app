@@ -19,7 +19,13 @@ const eventTypeValidator = v.union(
   v.literal("user_subscribed_to_board"),
   v.literal("user_unsubscribed_from_board"),
   v.literal("user_muted_card"),
-  v.literal("user_unmuted_card")
+  v.literal("user_unmuted_card"),
+  v.literal("user_added_to_board"),
+  v.literal("user_added_as_board_editor"),
+  v.literal("user_removed_as_board_editor"),
+  v.literal("user_added_as_board_owner"),
+  v.literal("user_removed_as_board_owner"),
+  v.literal("board_ownership_transferred")
 );
 
 // Metadata validator

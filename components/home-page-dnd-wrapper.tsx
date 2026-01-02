@@ -218,7 +218,7 @@ export function HomePageDndWrapper({
   if (!isDndEnabled) {
     return (
       <div className="flex flex-col lg:flex-row-reverse gap-10 max-w-5xl w-full mx-auto py-5">
-        <HomePageBoards organizationId={organizationId} />
+        <HomePageBoards organizationId={organizationId} members={members} />
         <UnassignedCardsSection
           members={members}
           organizationId={organizationId}
@@ -239,6 +239,7 @@ export function HomePageDndWrapper({
           organizationId={organizationId}
           isDropTarget
           highlightedBoardId={highlightedBoardId}
+          members={members}
         />
         <UnassignedCardsSection
           members={members}

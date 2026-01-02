@@ -101,10 +101,7 @@ export function BoardSwitcher({ organizationId }: BoardSwitcherProps) {
       </DropdownMenu>
 
       <Authenticated>
-        <CreateBoardDialog
-          organizationId={organizationId}
-          onBoardCreated={handleBoardCreated}
-        />
+        <CreateBoardDialog onBoardCreated={handleBoardCreated} />
       </Authenticated>
     </div>
   );

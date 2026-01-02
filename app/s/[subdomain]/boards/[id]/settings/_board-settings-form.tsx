@@ -6,7 +6,12 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { usePreloadedQuery, useMutation, type Preloaded } from "convex/react";
+import {
+  usePreloadedQuery,
+  useMutation,
+  useQuery,
+  type Preloaded,
+} from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
   Dialog,
@@ -27,7 +32,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -37,38 +48,98 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { GlobeIcon, GlobeLock, Trash2 } from "lucide-react";
+import {
+  GlobeIcon,
+  GlobeLock,
+  Trash2,
+  Crown,
+  Edit,
+  Users,
+  UserPlus,
+  UserMinus,
+} from "lucide-react";
 import { BoardWatchersList } from "@/components/activity";
+import { type OrganizationMember } from "@/app/actions";
+import { useUser } from "@clerk/nextjs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { getMemberDisplayName } from "@/components/cards/card-details";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z
     .string()
     .min(1, "Board name is required")
     .max(100, "Board name is too long"),
-  isPublic: z.boolean(),
+  visibility: z.enum(["public", "private", "restricted"]),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 interface BoardSettingsFormProps {
   preloadedBoard: Preloaded<typeof api.boards.getById>;
+  members: OrganizationMember[];
 }
 
-export function BoardSettingsForm({ preloadedBoard }: BoardSettingsFormProps) {
+export function BoardSettingsForm({
+  preloadedBoard,
+  members,
+}: BoardSettingsFormProps) {
   const router = useRouter();
+  const { user } = useUser();
   const board = usePreloadedQuery(preloadedBoard);
   const updateBoard = useMutation(api.boards.update);
   const deleteBoard = useMutation(api.boards.remove);
+  const addViewer = useMutation(api.boards.addViewer);
+  const removeViewer = useMutation(api.boards.removeViewer);
+  const addEditor = useMutation(api.boards.addEditor);
+  const removeEditor = useMutation(api.boards.removeEditor);
+  const addOwner = useMutation(api.boards.addOwner);
+  const removeOwner = useMutation(api.boards.removeOwner);
+
+  const canEdit = useQuery(
+    api.boards.canEdit,
+    board ? { boardId: board._id } : "skip"
+  );
+  const isOwner = useQuery(
+    api.boards.isOwner,
+    board ? { boardId: board._id } : "skip"
+  );
+  const owners = useQuery(
+    api.boards.getOwners,
+    board ? { boardId: board._id } : "skip"
+  );
+  const editors = useQuery(
+    api.boards.getEditors,
+    board ? { boardId: board._id } : "skip"
+  );
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmationText, setConfirmationText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [viewerSelectorOpen, setViewerSelectorOpen] = useState(false);
+  const [editorSelectorOpen, setEditorSelectorOpen] = useState(false);
+  const [ownerSelectorOpen, setOwnerSelectorOpen] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: board?.name ?? "",
-      isPublic: board?.visibility === "public",
+      visibility: board?.visibility ?? "private",
     },
   });
 
@@ -87,15 +158,78 @@ export function BoardSettingsForm({ preloadedBoard }: BoardSettingsFormProps) {
     if (!board) return;
 
     try {
+      const viewerIds =
+        values.visibility === "restricted"
+          ? (board.viewerIds ?? [])
+          : undefined;
+
       await updateBoard({
         boardId: board._id,
         name: values.name,
-        visibility: values.isPublic ? "public" : "private",
+        visibility: values.visibility,
+        viewerIds: values.visibility === "restricted" ? viewerIds : undefined,
       });
 
       router.push(`/boards/${board._id}`);
     } catch (error) {
       console.error("Failed to update board:", error);
+    }
+  };
+
+  const handleAddViewer = async (userId: string) => {
+    if (!board) return;
+    try {
+      await addViewer({ boardId: board._id, userId });
+      setViewerSelectorOpen(false);
+    } catch (error) {
+      console.error("Failed to add viewer:", error);
+    }
+  };
+
+  const handleRemoveViewer = async (userId: string) => {
+    if (!board) return;
+    try {
+      await removeViewer({ boardId: board._id, userId });
+    } catch (error) {
+      console.error("Failed to remove viewer:", error);
+    }
+  };
+
+  const handleAddEditor = async (userId: string) => {
+    if (!board) return;
+    try {
+      await addEditor({ boardId: board._id, userId });
+      setEditorSelectorOpen(false);
+    } catch (error) {
+      console.error("Failed to add editor:", error);
+    }
+  };
+
+  const handleRemoveEditor = async (userId: string) => {
+    if (!board) return;
+    try {
+      await removeEditor({ boardId: board._id, userId });
+    } catch (error) {
+      console.error("Failed to remove editor:", error);
+    }
+  };
+
+  const handleAddOwner = async (userId: string) => {
+    if (!board) return;
+    try {
+      await addOwner({ boardId: board._id, userId });
+      setOwnerSelectorOpen(false);
+    } catch (error) {
+      console.error("Failed to add owner:", error);
+    }
+  };
+
+  const handleRemoveOwner = async (userId: string) => {
+    if (!board) return;
+    try {
+      await removeOwner({ boardId: board._id, userId });
+    } catch (error) {
+      console.error("Failed to remove owner:", error);
     }
   };
 
@@ -119,7 +253,13 @@ export function BoardSettingsForm({ preloadedBoard }: BoardSettingsFormProps) {
     setDeleteDialogOpen(open);
   };
 
-  if (board === null) {
+  if (
+    board === null ||
+    canEdit === undefined ||
+    isOwner === undefined ||
+    owners === undefined ||
+    editors === undefined
+  ) {
     return (
       <div className="space-y-6">
         <div className="gap-4 max-w-2xl mx-auto mb-2">
@@ -165,62 +305,456 @@ export function BoardSettingsForm({ preloadedBoard }: BoardSettingsFormProps) {
           <h1 className="text-3xl font-black mt-2">Board Settings</h1>
         </div>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Board name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="My awesome board" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="isPublic"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-2">
-                    <FormLabel>Board visibility</FormLabel>
+        {!canEdit && (
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">
+                You don't have permission to edit this board. Only owners and
+                editors can modify board settings.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {canEdit && (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Board name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="My awesome board" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="visibility"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Visibility</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select visibility" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="public">Public</SelectItem>
+                        <SelectItem value="private">Private</SelectItem>
+                        <SelectItem value="restricted">Restricted</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormDescription className="flex items-center gap-2">
-                      {field.value ? (
+                      {field.value === "public" && (
                         <>
                           <GlobeIcon className="h-4 w-4 text-green-500" />{" "}
                           Anyone can view this board
                         </>
-                      ) : (
+                      )}
+                      {field.value === "private" && (
                         <>
-                          <GlobeLock className="h-4 w-4" /> Board is private
+                          <GlobeLock className="h-4 w-4" /> All authenticated
+                          org members can view this board
+                        </>
+                      )}
+                      {field.value === "restricted" && (
+                        <>
+                          <GlobeLock className="h-4 w-4" /> Only selected
+                          members can view this board
                         </>
                       )}
                     </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      id="isBoardPublic"
-                      data-testid="isBoardPublic"
-                    />
-                  </FormControl>
-                </FormItem>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" asChild>
+                  <Link href={`/boards/${board._id}`}>Cancel</Link>
+                </Button>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? <Spinner /> : "Save changes"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        )}
+
+        {board.visibility === "restricted" && canEdit && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Board Viewers</CardTitle>
+              <CardDescription>
+                Viewers who can view this restricted board. Owners are
+                automatically included.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">
+                    {board.viewerIds?.length ?? 0} viewer
+                    {(board.viewerIds?.length ?? 0) !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <Popover
+                  open={viewerSelectorOpen}
+                  onOpenChange={setViewerSelectorOpen}
+                >
+                  <PopoverTrigger asChild>
+                    <Button size="sm" variant="outline">
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Add viewer
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0" align="end">
+                    <Command>
+                      <CommandInput placeholder="Search members..." />
+                      <CommandList>
+                        <CommandEmpty>No members found.</CommandEmpty>
+                        <CommandGroup>
+                          {members
+                            .filter((m) => {
+                              const isOwner = owners.includes(m.userId);
+                              const isViewer =
+                                board.viewerIds?.includes(m.userId) ?? false;
+                              return !isOwner && !isViewer;
+                            })
+                            .map((member) => (
+                              <CommandItem
+                                key={member.userId}
+                                onSelect={() => handleAddViewer(member.userId)}
+                              >
+                                <Avatar className="mr-2 h-6 w-6">
+                                  <AvatarImage
+                                    src={member.imageUrl ?? undefined}
+                                  />
+                                  <AvatarFallback>
+                                    {getMemberDisplayName(member)
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")
+                                      .toUpperCase()
+                                      .slice(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                {getMemberDisplayName(member)}
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              {board.viewerIds && board.viewerIds.length > 0 && (
+                <div className="space-y-2">
+                  {board.viewerIds.map((userId) => {
+                    const member = members.find((m) => m.userId === userId);
+                    const isOwnerUser = owners.includes(userId);
+                    if (!member) return null;
+                    return (
+                      <div
+                        key={userId}
+                        className="flex items-center justify-between p-2 rounded-lg border"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={member.imageUrl ?? undefined} />
+                            <AvatarFallback>
+                              {getMemberDisplayName(member)
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()
+                                .slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">
+                              {getMemberDisplayName(member)}
+                            </span>
+                            {isOwnerUser && (
+                              <Badge variant="secondary" className="gap-1">
+                                <Crown className="h-3 w-3" />
+                                Owner
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        {!isOwnerUser && canEdit && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleRemoveViewer(userId)}
+                          >
+                            <UserMinus className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            />
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" asChild>
-                <Link href={`/boards/${board._id}`}>Cancel</Link>
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? <Spinner /> : "Save changes"}
-              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Crown className="h-5 w-5" />
+              Board Owners
+            </CardTitle>
+            <CardDescription>
+              {isOwner
+                ? "Owners can edit, delete, and manage the board. At least one owner is required."
+                : "Board owners have full control over this board."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Crown className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  {owners.length} owner{owners.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              {isOwner && (
+                <Popover
+                  open={ownerSelectorOpen}
+                  onOpenChange={setOwnerSelectorOpen}
+                >
+                  <PopoverTrigger asChild>
+                    <Button size="sm" variant="outline">
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Add owner
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0" align="end">
+                    <Command>
+                      <CommandInput placeholder="Search members..." />
+                      <CommandList>
+                        <CommandEmpty>No members found.</CommandEmpty>
+                        <CommandGroup>
+                          {members
+                            .filter((m) => !owners.includes(m.userId))
+                            .map((member) => (
+                              <CommandItem
+                                key={member.userId}
+                                onSelect={() => handleAddOwner(member.userId)}
+                              >
+                                <Avatar className="mr-2 h-6 w-6">
+                                  <AvatarImage
+                                    src={member.imageUrl ?? undefined}
+                                  />
+                                  <AvatarFallback>
+                                    {getMemberDisplayName(member)
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")
+                                      .toUpperCase()
+                                      .slice(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                {getMemberDisplayName(member)}
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
-          </form>
-        </Form>
+            {owners.length > 0 && (
+              <div className="space-y-2">
+                {owners.map((userId) => {
+                  const member = members.find((m) => m.userId === userId);
+                  if (!member) return null;
+                  const isLast = owners.length === 1;
+                  const isCurrentUser = userId === user?.id;
+                  return (
+                    <div
+                      key={userId}
+                      className="flex items-center justify-between p-2 rounded-lg border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={member.imageUrl ?? undefined} />
+                          <AvatarFallback>
+                            {getMemberDisplayName(member)
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">
+                              {getMemberDisplayName(member)}
+                            </span>
+                            {isCurrentUser && (
+                              <Badge variant="secondary">You</Badge>
+                            )}
+                          </div>
+                          {member.identifier && (
+                            <span className="text-xs text-muted-foreground">
+                              {member.identifier}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {isOwner && !isLast && !isCurrentUser && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleRemoveOwner(userId)}
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {canEdit && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Edit className="h-5 w-5" />
+                Board Editors
+              </CardTitle>
+              <CardDescription>
+                Editors can edit board settings but cannot delete the board.
+                Owners are automatically editors.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Edit className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">
+                    {editors.length} editor{editors.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <Popover
+                  open={editorSelectorOpen}
+                  onOpenChange={setEditorSelectorOpen}
+                >
+                  <PopoverTrigger asChild>
+                    <Button size="sm" variant="outline">
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Add editor
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0" align="end">
+                    <Command>
+                      <CommandInput placeholder="Search members..." />
+                      <CommandList>
+                        <CommandEmpty>No members found.</CommandEmpty>
+                        <CommandGroup>
+                          {members
+                            .filter((m) => {
+                              const isOwner = owners.includes(m.userId);
+                              const isEditor = editors.includes(m.userId);
+                              return !isOwner && !isEditor;
+                            })
+                            .map((member) => (
+                              <CommandItem
+                                key={member.userId}
+                                onSelect={() => handleAddEditor(member.userId)}
+                              >
+                                <Avatar className="mr-2 h-6 w-6">
+                                  <AvatarImage
+                                    src={member.imageUrl ?? undefined}
+                                  />
+                                  <AvatarFallback>
+                                    {getMemberDisplayName(member)
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")
+                                      .toUpperCase()
+                                      .slice(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                {getMemberDisplayName(member)}
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              {editors.length > 0 && (
+                <div className="space-y-2">
+                  {editors.map((userId) => {
+                    const member = members.find((m) => m.userId === userId);
+                    if (!member) return null;
+                    const isOwnerUser = owners.includes(userId);
+                    return (
+                      <div
+                        key={userId}
+                        className="flex items-center justify-between p-2 rounded-lg border"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={member.imageUrl ?? undefined} />
+                            <AvatarFallback>
+                              {getMemberDisplayName(member)
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()
+                                .slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">
+                              {getMemberDisplayName(member)}
+                            </span>
+                            {isOwnerUser && (
+                              <Badge variant="secondary" className="gap-1">
+                                <Crown className="h-3 w-3" />
+                                Owner
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        {!isOwnerUser && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleRemoveEditor(userId)}
+                          >
+                            <UserMinus className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Watchers Section */}
         <Card>
@@ -236,15 +770,17 @@ export function BoardSettingsForm({ preloadedBoard }: BoardSettingsFormProps) {
           </CardContent>
         </Card>
 
-        <div className="max-w-2xl mx-auto flex items-center justify-center">
-          <Button
-            variant="destructive"
-            onClick={() => setDeleteDialogOpen(true)}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete board
-          </Button>
-        </div>
+        {isOwner && (
+          <div className="max-w-2xl mx-auto flex items-center justify-center">
+            <Button
+              variant="destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete board
+            </Button>
+          </div>
+        )}
 
         <Dialog open={deleteDialogOpen} onOpenChange={handleDeleteDialogClose}>
           <DialogContent>

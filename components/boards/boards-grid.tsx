@@ -125,6 +125,8 @@ export function BoardsGrid({ organizationId }: BoardsGridProps) {
                   <div className="flex items-center gap-2">
                     {board.visibility === "public" ? (
                       <Globe className="h-4 w-4 text-muted-foreground" />
+                    ) : board.visibility === "restricted" ? (
+                      <Lock className="h-4 w-4 text-muted-foreground" />
                     ) : (
                       <Lock className="h-4 w-4 text-muted-foreground" />
                     )}

@@ -24,12 +24,20 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 import { CreateBoardDialog } from "./create-board-dialog";
+import { type OrganizationMember } from "@/app/actions";
 
 interface BoardData {
   _id: Id<"boards">;
   name: string;
   visibility: string;
   updatedAt: number;
+}
+
+interface HomePageBoardsProps {
+  organizationId: string;
+  isDropTarget?: boolean;
+  highlightedBoardId?: string | null;
+  members?: OrganizationMember[];
 }
 
 interface DroppableBoardCardProps {
@@ -134,6 +142,7 @@ export function HomePageBoards({
   organizationId,
   isDropTarget = false,
   highlightedBoardId = null,
+  members = [],
 }: HomePageBoardsProps) {
   const router = useRouter();
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
@@ -212,6 +221,7 @@ export function HomePageBoards({
           <CreateBoardDialog
             open={isDialogOpen}
             onOpenChange={setIsDialogOpen}
+            members={members}
           />
         )}
       </div>

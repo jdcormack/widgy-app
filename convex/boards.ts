@@ -862,6 +862,56 @@ export const getViewers = query({
 });
 
 /**
+ * Get all board members with their roles.
+ * Returns array of objects with userId and role.
+ */
+export const getAllMembers = query({
+  args: {
+    boardId: v.id("boards"),
+  },
+  returns: v.array(
+    v.object({
+      userId: v.string(),
+      role: v.union(
+        v.literal("owner"),
+        v.literal("editor"),
+        v.literal("viewer")
+      ),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.org_id) {
+      return [];
+    }
+
+    const board = await ctx.db.get(args.boardId);
+    if (!board || board.organizationId !== identity.org_id) {
+      return [];
+    }
+
+    // Use withIndex instead of filter (Convex rule)
+    const members = await ctx.db
+      .query("boardMembers")
+      .withIndex("by_boardId", (q) => q.eq("boardId", args.boardId))
+      .collect();
+
+    // Return array with proper typing (Convex rule: const array: Array<T> = [...])
+    const result: Array<{
+      userId: string;
+      role: "owner" | "editor" | "viewer";
+    }> = [];
+    for (const member of members) {
+      result.push({
+        userId: member.userId,
+        role: member.role,
+      });
+    }
+    return result;
+  },
+});
+
+/**
  * Add a user to a restricted board's viewerIds array.
  * Only owners or editors can add viewers.
  */
@@ -1284,6 +1334,282 @@ export const removeOwner = mutation({
         boardName: board.name,
       },
     });
+
+    return null;
+  },
+});
+
+/**
+ * Set a member's role on a board.
+ * Only owners can assign owner role.
+ * Editors can only assign editor/viewer roles.
+ */
+export const setMemberRole = mutation({
+  args: {
+    boardId: v.id("boards"),
+    userId: v.string(),
+    newRole: v.union(
+      v.literal("owner"),
+      v.literal("editor"),
+      v.literal("viewer")
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in");
+    }
+
+    const board = await ctx.db.get(args.boardId);
+    if (!board || board.organizationId !== identity.org_id) {
+      throw new Error("Board not found or access denied");
+    }
+
+    // Check current user's role
+    const currentUserIsOwner = await isUserOwner(
+      ctx,
+      args.boardId,
+      identity.subject
+    );
+    const currentUserIsEditor = await isUserEditor(
+      ctx,
+      args.boardId,
+      identity.subject
+    );
+
+    // Permission checks: Only owners can assign owner role
+    if (args.newRole === "owner" && !currentUserIsOwner) {
+      throw new Error("Unauthorized: Only owners can assign owner role");
+    }
+
+    // Editors can only assign editor/viewer roles
+    if (!currentUserIsOwner && !currentUserIsEditor) {
+      throw new Error("Unauthorized: Only owners or editors can change roles");
+    }
+
+    // Get current member info
+    const existingMember = await ctx.db
+      .query("boardMembers")
+      .withIndex("by_boardId_and_userId", (q) =>
+        q.eq("boardId", args.boardId).eq("userId", args.userId)
+      )
+      .unique();
+
+    const currentRole = existingMember?.role;
+    const ownerIds = await getBoardOwners(ctx, args.boardId);
+
+    // Enforce constraints
+    if (currentRole === "owner" && args.newRole !== "owner") {
+      // Changing from owner to another role
+      if (ownerIds.length <= 1) {
+        throw new Error("Cannot remove the last owner");
+      }
+      if (args.userId === identity.subject) {
+        throw new Error("Owners cannot remove themselves");
+      }
+    }
+
+    // Check if role is actually changing
+    if (currentRole === args.newRole) {
+      return null; // No change needed
+    }
+
+    // Use existing setBoardMember helper
+    await setBoardMember(
+      ctx,
+      args.boardId,
+      args.userId,
+      args.newRole,
+      identity.org_id as string
+    );
+
+    // Handle activity logging for role changes
+    const boardName = board.name;
+    const organizationId = identity.org_id as string;
+
+    // Log role change events
+    if (currentRole === "owner" && args.newRole !== "owner") {
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "user_removed_as_board_owner",
+        actorId: identity.subject,
+        boardId: args.boardId,
+        organizationId,
+        metadata: {
+          targetUserId: args.userId,
+          boardName,
+        },
+      });
+    } else if (currentRole !== "owner" && args.newRole === "owner") {
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "user_added_as_board_owner",
+        actorId: identity.subject,
+        boardId: args.boardId,
+        organizationId,
+        metadata: {
+          targetUserId: args.userId,
+          boardName,
+        },
+      });
+      // Auto-subscribe new owner to board
+      await ctx.scheduler.runAfter(0, internal.activity.subscribeUserToBoard, {
+        boardId: args.boardId,
+        userId: args.userId,
+        organizationId,
+      });
+    } else if (currentRole === "editor" && args.newRole === "viewer") {
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "user_removed_as_board_editor",
+        actorId: identity.subject,
+        boardId: args.boardId,
+        organizationId,
+        metadata: {
+          targetUserId: args.userId,
+          boardName,
+        },
+      });
+    } else if (currentRole === "viewer" && args.newRole === "editor") {
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "user_added_as_board_editor",
+        actorId: identity.subject,
+        boardId: args.boardId,
+        organizationId,
+        metadata: {
+          targetUserId: args.userId,
+          boardName,
+        },
+      });
+      // Auto-subscribe new editor to board
+      await ctx.scheduler.runAfter(0, internal.activity.subscribeUserToBoard, {
+        boardId: args.boardId,
+        userId: args.userId,
+        organizationId,
+      });
+    } else if (!existingMember && args.newRole === "viewer") {
+      // New member added as viewer
+      await ctx.scheduler.runAfter(0, internal.activity.subscribeUserToBoard, {
+        boardId: args.boardId,
+        userId: args.userId,
+        organizationId,
+      });
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "user_added_to_board",
+        actorId: identity.subject,
+        boardId: args.boardId,
+        organizationId,
+        metadata: {
+          targetUserId: args.userId,
+          boardName,
+        },
+      });
+    } else if (!existingMember && args.newRole === "editor") {
+      // New member added as editor
+      await ctx.scheduler.runAfter(0, internal.activity.subscribeUserToBoard, {
+        boardId: args.boardId,
+        userId: args.userId,
+        organizationId,
+      });
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "user_added_as_board_editor",
+        actorId: identity.subject,
+        boardId: args.boardId,
+        organizationId,
+        metadata: {
+          targetUserId: args.userId,
+          boardName,
+        },
+      });
+    }
+
+    return null;
+  },
+});
+
+/**
+ * Remove a member from the board.
+ * Only owners can remove members.
+ * Cannot remove the last owner.
+ * Owners cannot remove themselves.
+ */
+export const removeMember = mutation({
+  args: {
+    boardId: v.id("boards"),
+    userId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in");
+    }
+
+    const board = await ctx.db.get(args.boardId);
+    if (!board || board.organizationId !== identity.org_id) {
+      throw new Error("Board not found or access denied");
+    }
+
+    // Only owners can remove members
+    const userIsOwner = await isUserOwner(ctx, args.boardId, identity.subject);
+    if (!userIsOwner) {
+      throw new Error("Unauthorized: Only owners can remove members");
+    }
+
+    // Get current member info
+    const existingMember = await ctx.db
+      .query("boardMembers")
+      .withIndex("by_boardId_and_userId", (q) =>
+        q.eq("boardId", args.boardId).eq("userId", args.userId)
+      )
+      .unique();
+
+    if (!existingMember) {
+      return null; // Not a member
+    }
+
+    // Cannot remove the last owner
+    const ownerIds = await getBoardOwners(ctx, args.boardId);
+    if (existingMember.role === "owner") {
+      if (ownerIds.length <= 1) {
+        throw new Error("Cannot remove the last owner");
+      }
+      if (args.userId === identity.subject) {
+        throw new Error("Owners cannot remove themselves");
+      }
+    }
+
+    // Remove the member
+    await removeBoardMember(ctx, args.boardId, args.userId);
+    await ctx.db.patch(args.boardId, {
+      updatedAt: Date.now(),
+    });
+
+    // Log event based on role
+    const boardName = board.name;
+    const organizationId = identity.org_id as string;
+
+    if (existingMember.role === "owner") {
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "user_removed_as_board_owner",
+        actorId: identity.subject,
+        boardId: args.boardId,
+        organizationId,
+        metadata: {
+          targetUserId: args.userId,
+          boardName,
+        },
+      });
+    } else if (existingMember.role === "editor") {
+      await ctx.scheduler.runAfter(0, internal.activity.logEvent, {
+        eventType: "user_removed_as_board_editor",
+        actorId: identity.subject,
+        boardId: args.boardId,
+        organizationId,
+        metadata: {
+          targetUserId: args.userId,
+          boardName,
+        },
+      });
+    }
 
     return null;
   },

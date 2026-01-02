@@ -132,6 +132,10 @@ export function BoardSettingsForm({
     api.boards.getEditors,
     board ? { boardId: board._id } : "skip"
   );
+  const viewers = useQuery(
+    api.boards.getViewers,
+    board ? { boardId: board._id } : "skip"
+  );
   const watchers = useQuery(
     api.activity.getBoardSubscribers,
     board ? { boardId: board._id } : "skip"
@@ -173,9 +177,7 @@ export function BoardSettingsForm({
 
     try {
       const viewerIds =
-        values.visibility === "restricted"
-          ? (board.viewerIds ?? [])
-          : undefined;
+        values.visibility === "restricted" ? (viewers ?? []) : undefined;
 
       await updateBoard({
         boardId: board._id,
@@ -305,6 +307,7 @@ export function BoardSettingsForm({
     isOwner === undefined ||
     owners === undefined ||
     editors === undefined ||
+    viewers === undefined ||
     watchers === undefined ||
     isSubscribed === undefined
   ) {
@@ -448,8 +451,8 @@ export function BoardSettingsForm({
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">
-                    {board.viewerIds?.length ?? 0} viewer
-                    {(board.viewerIds?.length ?? 0) !== 1 ? "s" : ""}
+                    {viewers?.length ?? 0} viewer
+                    {(viewers?.length ?? 0) !== 1 ? "s" : ""}
                   </span>
                 </div>
                 <Popover
@@ -472,7 +475,7 @@ export function BoardSettingsForm({
                             .filter((m) => {
                               const isOwner = owners.includes(m.userId);
                               const isViewer =
-                                board.viewerIds?.includes(m.userId) ?? false;
+                                viewers?.includes(m.userId) ?? false;
                               return !isOwner && !isViewer;
                             })
                             .map((member) => (
@@ -502,9 +505,9 @@ export function BoardSettingsForm({
                   </PopoverContent>
                 </Popover>
               </div>
-              {board.viewerIds && board.viewerIds.length > 0 && (
+              {viewers && viewers.length > 0 && (
                 <div className="space-y-2">
-                  {board.viewerIds.map((userId) => {
+                  {viewers.map((userId) => {
                     const member = members.find((m) => m.userId === userId);
                     const isOwnerUser = owners.includes(userId);
                     if (!member) return null;

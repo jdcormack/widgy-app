@@ -839,6 +839,29 @@ export const getOwners = query({
 });
 
 /**
+ * Get list of user IDs who can view a restricted board.
+ */
+export const getViewers = query({
+  args: {
+    boardId: v.id("boards"),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.org_id) {
+      return [];
+    }
+
+    const board = await ctx.db.get(args.boardId);
+    if (!board || board.organizationId !== identity.org_id) {
+      return [];
+    }
+
+    return await getBoardViewers(ctx, args.boardId);
+  },
+});
+
+/**
  * Add a user to a restricted board's viewerIds array.
  * Only owners or editors can add viewers.
  */

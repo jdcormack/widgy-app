@@ -18,9 +18,6 @@ export default defineSchema({
       v.literal("restricted")
     ),
     createdBy: v.string(),
-    ownerIds: v.array(v.string()), // Board owners (minimum 1, initially set to creator)
-    viewerIds: v.optional(v.array(v.string())), // Users who can view restricted boards
-    editorIds: v.optional(v.array(v.string())), // Users who can edit the board (owners are implicitly editors)
     updatedAt: v.number(),
     customColumns: v.optional(v.array(customColumnValidator)),
   }).index("by_organizationId", ["organizationId"]),
@@ -104,6 +101,18 @@ export default defineSchema({
   })
     .index("by_feedbackId", ["feedbackId"])
     .index("by_cardId", ["cardId"]),
+
+  // Board permissions: owners, editors, and viewers
+  boardMembers: defineTable({
+    boardId: v.id("boards"),
+    userId: v.string(), // Clerk user ID
+    organizationId: v.string(),
+    role: v.union(v.literal("owner"), v.literal("editor"), v.literal("viewer")),
+  })
+    .index("by_boardId", ["boardId"])
+    .index("by_userId_and_organizationId", ["userId", "organizationId"])
+    .index("by_boardId_and_userId", ["boardId", "userId"])
+    .index("by_boardId_and_role", ["boardId", "role"]),
 
   // Activity feed tables
   boardSubscriptions: defineTable({

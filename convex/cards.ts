@@ -24,15 +24,22 @@ export const create = mutation({
 
     // If creating a card for a board, check edit permissions
     if (args.boardId) {
-      const board = await ctx.db.get(args.boardId);
+      const boardId = args.boardId;
+      const board = await ctx.db.get(boardId);
       if (!board) {
         throw new Error("Board not found");
       }
 
       // Check if user is owner or editor
-      const isOwner = board.ownerIds.includes(identity.subject);
-      const isEditor = board.editorIds?.includes(identity.subject) ?? false;
-      if (!isOwner && !isEditor) {
+      const member = await ctx.db
+        .query("boardMembers")
+        .withIndex("by_boardId_and_userId", (q) =>
+          q.eq("boardId", boardId).eq("userId", identity.subject)
+        )
+        .unique();
+
+      const isEditor = member?.role === "owner" || member?.role === "editor";
+      if (!isEditor) {
         throw new Error(
           "Unauthorized: Only editors or owners can create cards on this board"
         );

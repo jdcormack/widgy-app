@@ -1,6 +1,7 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { Doc } from "./_generated/dataModel";
 
 // Custom column validator for return types
 const customColumnValidator = v.object({
@@ -8,6 +9,174 @@ const customColumnValidator = v.object({
   name: v.string(),
   position: v.number(),
 });
+
+// Helper type for board member role
+type BoardMemberRole = "owner" | "editor" | "viewer";
+
+/**
+ * Helper function to get board owners
+ */
+async function getBoardOwners(ctx: any, boardId: any): Promise<string[]> {
+  const members = await ctx.db
+    .query("boardMembers")
+    .withIndex("by_boardId_and_role", (q: any) =>
+      q.eq("boardId", boardId).eq("role", "owner")
+    )
+    .collect();
+  return members.map((m: Doc<"boardMembers">) => m.userId);
+}
+
+/**
+ * Helper function to get board editors (owners + editors)
+ */
+async function getBoardEditors(ctx: any, boardId: any): Promise<string[]> {
+  const owners = await getBoardOwners(ctx, boardId);
+  const editors = await ctx.db
+    .query("boardMembers")
+    .withIndex("by_boardId_and_role", (q: any) =>
+      q.eq("boardId", boardId).eq("role", "editor")
+    )
+    .collect();
+  const editorIds = editors.map((e: Doc<"boardMembers">) => e.userId);
+  return Array.from(new Set([...owners, ...editorIds]));
+}
+
+/**
+ * Helper function to get board viewers
+ */
+async function getBoardViewers(ctx: any, boardId: any): Promise<string[]> {
+  const members = await ctx.db
+    .query("boardMembers")
+    .withIndex("by_boardId_and_role", (q: any) =>
+      q.eq("boardId", boardId).eq("role", "viewer")
+    )
+    .collect();
+  return members.map((m: Doc<"boardMembers">) => m.userId);
+}
+
+/**
+ * Helper function to check if user is owner
+ */
+async function isUserOwner(
+  ctx: any,
+  boardId: any,
+  userId: string
+): Promise<boolean> {
+  const member = await ctx.db
+    .query("boardMembers")
+    .withIndex("by_boardId_and_userId", (q: any) =>
+      q.eq("boardId", boardId).eq("userId", userId)
+    )
+    .unique();
+  return member?.role === "owner";
+}
+
+/**
+ * Helper function to check if user is editor (owner or editor)
+ */
+async function isUserEditor(
+  ctx: any,
+  boardId: any,
+  userId: string
+): Promise<boolean> {
+  const member = await ctx.db
+    .query("boardMembers")
+    .withIndex("by_boardId_and_userId", (q: any) =>
+      q.eq("boardId", boardId).eq("userId", userId)
+    )
+    .unique();
+  return member?.role === "owner" || member?.role === "editor";
+}
+
+/**
+ * Helper function to check if user is viewer
+ */
+async function isUserViewer(
+  ctx: any,
+  boardId: any,
+  userId: string
+): Promise<boolean> {
+  const member = await ctx.db
+    .query("boardMembers")
+    .withIndex("by_boardId_and_userId", (q: any) =>
+      q.eq("boardId", boardId).eq("userId", userId)
+    )
+    .unique();
+  return (
+    member?.role === "owner" ||
+    member?.role === "editor" ||
+    member?.role === "viewer"
+  );
+}
+
+/**
+ * Helper function to set board member role
+ */
+async function setBoardMember(
+  ctx: any,
+  boardId: any,
+  userId: string,
+  role: BoardMemberRole,
+  organizationId: string
+): Promise<void> {
+  const existing = await ctx.db
+    .query("boardMembers")
+    .withIndex("by_boardId_and_userId", (q: any) =>
+      q.eq("boardId", boardId).eq("userId", userId)
+    )
+    .unique();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, { role });
+  } else {
+    await ctx.db.insert("boardMembers", {
+      boardId,
+      userId,
+      role,
+      organizationId,
+    });
+  }
+}
+
+/**
+ * Helper function to remove board member
+ */
+async function removeBoardMember(
+  ctx: any,
+  boardId: any,
+  userId: string
+): Promise<void> {
+  const existing = await ctx.db
+    .query("boardMembers")
+    .withIndex("by_boardId_and_userId", (q: any) =>
+      q.eq("boardId", boardId).eq("userId", userId)
+    )
+    .unique();
+
+  if (existing) {
+    await ctx.db.delete(existing._id);
+  }
+  // If doesn't exist, nothing to do - safe to ignore
+}
+
+/**
+ * Helper function to ensure user is owner or editor, throws if not.
+ * Checks owner first (1 query), then editor only if needed (2 queries total).
+ */
+async function requireOwnerOrEditor(
+  ctx: any,
+  boardId: any,
+  userId: string,
+  errorMessage: string = "Unauthorized: Only owners or editors can perform this action"
+): Promise<void> {
+  const userIsOwner = await isUserOwner(ctx, boardId, userId);
+  if (!userIsOwner) {
+    const userIsEditor = await isUserEditor(ctx, boardId, userId);
+    if (!userIsEditor) {
+      throw new Error(errorMessage);
+    }
+  }
+}
 
 /**
  * Create a new board within an organization.
@@ -33,13 +202,15 @@ export const create = mutation({
       throw new Error("Unauthorized: Must be logged in to create a board");
     }
 
+    const organizationId = identity.org_id as string;
+
     // Set ownerIds - default to creator if not provided, must have at least 1
     const ownerIds =
       args.ownerIds && args.ownerIds.length > 0
         ? args.ownerIds
         : [identity.subject];
 
-    // Handle restricted boards - ensure owners are always included
+    // Handle restricted boards - ensure owners are always included as viewers
     let finalViewerIds = args.viewerIds;
     if (args.visibility === "restricted") {
       // Start with provided viewerIds or empty array
@@ -61,14 +232,38 @@ export const create = mutation({
 
     const boardId = await ctx.db.insert("boards", {
       name: args.name,
-      organizationId: identity.org_id as string,
+      organizationId,
       visibility: args.visibility,
       createdBy: identity.subject,
-      ownerIds,
-      viewerIds: args.visibility === "restricted" ? finalViewerIds : undefined,
-      editorIds: args.editorIds,
       updatedAt: Date.now(),
     });
+
+    // Create board members
+    // Add owners
+    for (const userId of ownerIds) {
+      await setBoardMember(ctx, boardId, userId, "owner", organizationId);
+    }
+
+    // Add editors (excluding owners)
+    if (args.editorIds) {
+      const ownerIdsSet = new Set(ownerIds);
+      for (const userId of args.editorIds) {
+        if (!ownerIdsSet.has(userId)) {
+          await setBoardMember(ctx, boardId, userId, "editor", organizationId);
+        }
+      }
+    }
+
+    // Add viewers for restricted boards (excluding owners and editors)
+    if (args.visibility === "restricted" && finalViewerIds) {
+      const ownerIdsSet = new Set(ownerIds);
+      const editorIdsSet = new Set(args.editorIds || []);
+      for (const userId of finalViewerIds) {
+        if (!ownerIdsSet.has(userId) && !editorIdsSet.has(userId)) {
+          await setBoardMember(ctx, boardId, userId, "viewer", organizationId);
+        }
+      }
+    }
 
     // Auto-subscribe all owners and viewers/editors to the board
     const usersToSubscribe = new Set<string>();
@@ -84,7 +279,7 @@ export const create = mutation({
       await ctx.scheduler.runAfter(0, internal.activity.subscribeUserToBoard, {
         boardId,
         userId,
-        organizationId: identity.org_id as string,
+        organizationId,
       });
     }
 
@@ -97,7 +292,7 @@ export const create = mutation({
             eventType: "user_added_to_board",
             actorId: identity.subject,
             boardId,
-            organizationId: identity.org_id as string,
+            organizationId,
             metadata: {
               targetUserId: userId,
               boardName: args.name,
@@ -116,7 +311,7 @@ export const create = mutation({
             eventType: "user_added_as_board_editor",
             actorId: identity.subject,
             boardId,
-            organizationId: identity.org_id as string,
+            organizationId,
             metadata: {
               targetUserId: userId,
               boardName: args.name,
@@ -160,21 +355,30 @@ export const update = mutation({
     }
 
     // Check if user is owner or editor
-    const isOwner = board.ownerIds.includes(identity.subject);
-    const isEditor = board.editorIds?.includes(identity.subject) ?? false;
-    if (!isOwner && !isEditor) {
-      throw new Error(
-        "Unauthorized: Only owners or editors can update a board"
-      );
-    }
+    await requireOwnerOrEditor(
+      ctx,
+      args.boardId,
+      identity.subject,
+      "Unauthorized: Only owners or editors can update a board"
+    );
 
-    const ownerIdsSet = new Set(board.ownerIds);
+    const organizationId = identity.org_id as string;
+    const ownerIds = await getBoardOwners(ctx, args.boardId);
+    const ownerIdsSet = new Set(ownerIds);
     const oldVisibility = board.visibility as
       | "public"
       | "private"
       | "restricted";
-    const oldViewerIds = board.viewerIds ?? [];
-    const oldEditorIds = board.editorIds ?? [];
+    const oldViewerIds = await getBoardViewers(ctx, args.boardId);
+    const oldEditorMembers = await ctx.db
+      .query("boardMembers")
+      .withIndex("by_boardId_and_role", (q) =>
+        q.eq("boardId", args.boardId).eq("role", "editor")
+      )
+      .collect();
+    const oldEditorIds = oldEditorMembers.map(
+      (m: Doc<"boardMembers">) => m.userId
+    );
     const oldViewerIdsSet = new Set(oldViewerIds);
     const oldEditorIdsSet = new Set(oldEditorIds);
 
@@ -196,7 +400,7 @@ export const update = mutation({
 
       // Ensure all owners are in viewerIds
       const viewerIdsSet = new Set(newViewerIds);
-      for (const ownerId of board.ownerIds) {
+      for (const ownerId of ownerIds) {
         if (!viewerIdsSet.has(ownerId)) {
           newViewerIds.push(ownerId);
         }
@@ -216,7 +420,7 @@ export const update = mutation({
     if (newEditorIds !== undefined) {
       // Ensure all owners are in editorIds
       newEditorIds = [...newEditorIds];
-      for (const ownerId of board.ownerIds) {
+      for (const ownerId of ownerIds) {
         if (!newEditorIds.includes(ownerId)) {
           newEditorIds.push(ownerId);
         }
@@ -227,10 +431,85 @@ export const update = mutation({
     await ctx.db.patch(args.boardId, {
       name: args.name,
       visibility: visibility,
-      viewerIds: newViewerIds,
-      editorIds: newEditorIds,
       updatedAt: Date.now(),
     });
+
+    // Update board members for restricted boards
+    if (isRestricted && newViewerIds) {
+      // Remove old viewers that are no longer in the list
+      for (const userId of oldViewerIds) {
+        // Only remove if they're not in new list and not an owner or editor
+        if (
+          !newViewerIds.includes(userId) &&
+          !ownerIdsSet.has(userId) &&
+          !oldEditorIdsSet.has(userId)
+        ) {
+          await removeBoardMember(ctx, args.boardId, userId);
+        }
+      }
+      // Add new viewers
+      for (const userId of newViewerIds) {
+        // Skip if already owner, editor, or viewer
+        if (
+          !ownerIdsSet.has(userId) &&
+          !oldEditorIdsSet.has(userId) &&
+          !oldViewerIdsSet.has(userId)
+        ) {
+          await setBoardMember(
+            ctx,
+            args.boardId,
+            userId,
+            "viewer",
+            organizationId
+          );
+        }
+      }
+    } else if (wasRestricted && !isRestricted) {
+      // Remove all viewers when changing from restricted
+      for (const userId of oldViewerIds) {
+        if (!ownerIdsSet.has(userId)) {
+          const member = await ctx.db
+            .query("boardMembers")
+            .withIndex("by_boardId_and_userId", (q) =>
+              q.eq("boardId", args.boardId).eq("userId", userId)
+            )
+            .unique();
+          if (member && member.role === "viewer") {
+            await removeBoardMember(ctx, args.boardId, userId);
+          }
+        }
+      }
+    }
+
+    // Update editors
+    if (newEditorIds !== undefined) {
+      // Remove old editors that are no longer in the list (but not owners)
+      for (const userId of oldEditorIds) {
+        if (!newEditorIds.includes(userId) && !ownerIdsSet.has(userId)) {
+          const member = await ctx.db
+            .query("boardMembers")
+            .withIndex("by_boardId_and_userId", (q) =>
+              q.eq("boardId", args.boardId).eq("userId", userId)
+            )
+            .unique();
+          if (member && member.role === "editor") {
+            await removeBoardMember(ctx, args.boardId, userId);
+          }
+        }
+      }
+      // Add new editors
+      for (const userId of newEditorIds) {
+        if (!ownerIdsSet.has(userId) && !oldEditorIdsSet.has(userId)) {
+          await setBoardMember(
+            ctx,
+            args.boardId,
+            userId,
+            "editor",
+            organizationId
+          );
+        }
+      }
+    }
 
     // Handle visibility changes - subscribe/unsubscribe users
     if (newViewerIds) {
@@ -336,9 +615,6 @@ export const listByOrganization = query({
         v.literal("restricted")
       ),
       createdBy: v.string(),
-      ownerIds: v.array(v.string()),
-      viewerIds: v.optional(v.array(v.string())),
-      editorIds: v.optional(v.array(v.string())),
       updatedAt: v.number(),
       customColumns: v.optional(v.array(customColumnValidator)),
     })
@@ -356,28 +632,33 @@ export const listByOrganization = query({
       .collect();
 
     // Filter boards based on authentication and visibility
-    const filteredBoards = allBoards.filter((board) => {
+    const filteredBoards: typeof allBoards = [];
+    for (const board of allBoards) {
       // Public boards: anyone can see
       if (board.visibility === "public") {
-        return true;
+        filteredBoards.push(board);
+        continue;
       }
 
       // Private boards: authenticated org members can see
       if (board.visibility === "private") {
-        return isAuthenticated;
+        if (isAuthenticated) {
+          filteredBoards.push(board);
+        }
+        continue;
       }
 
-      // Restricted boards: only users in viewerIds can see
+      // Restricted boards: only users who are viewers, editors, or owners can see
       if (board.visibility === "restricted") {
         if (!isAuthenticated) {
-          return false;
+          continue;
         }
-        const viewerIds = board.viewerIds ?? [];
-        return viewerIds.includes(identity.subject);
+        const isViewer = await isUserViewer(ctx, board._id, identity.subject);
+        if (isViewer) {
+          filteredBoards.push(board);
+        }
       }
-
-      return false;
-    });
+    }
 
     // Sort by creation time descending (newest first) for stable ordering
     const sortedBoards = filteredBoards
@@ -413,9 +694,6 @@ export const getById = query({
         v.literal("restricted")
       ),
       createdBy: v.string(),
-      ownerIds: v.array(v.string()),
-      viewerIds: v.optional(v.array(v.string())),
-      editorIds: v.optional(v.array(v.string())),
       updatedAt: v.number(),
       customColumns: v.optional(v.array(customColumnValidator)),
     }),
@@ -448,13 +726,13 @@ export const getById = query({
       };
     }
 
-    // Restricted boards require user to be in viewerIds
+    // Restricted boards require user to be a viewer, editor, or owner
     if (board.visibility === "restricted") {
       if (!identity || identity.org_id !== board.organizationId) {
         return null;
       }
-      const viewerIds = board.viewerIds ?? [];
-      if (!viewerIds.includes(identity.subject)) {
+      const isViewer = await isUserViewer(ctx, args.boardId, identity.subject);
+      if (!isViewer) {
         return null;
       }
       return {
@@ -487,9 +765,7 @@ export const canEdit = query({
       return false;
     }
 
-    const isOwner = board.ownerIds.includes(identity.subject);
-    const isEditor = board.editorIds?.includes(identity.subject) ?? false;
-    return isOwner || isEditor;
+    return await isUserEditor(ctx, args.boardId, identity.subject);
   },
 });
 
@@ -512,7 +788,7 @@ export const isOwner = query({
       return false;
     }
 
-    return board.ownerIds.includes(identity.subject);
+    return await isUserOwner(ctx, args.boardId, identity.subject);
   },
 });
 
@@ -535,11 +811,7 @@ export const getEditors = query({
       return [];
     }
 
-    const editors = new Set(board.ownerIds);
-    if (board.editorIds) {
-      board.editorIds.forEach((id) => editors.add(id));
-    }
-    return Array.from(editors);
+    return await getBoardEditors(ctx, args.boardId);
   },
 });
 
@@ -562,7 +834,7 @@ export const getOwners = query({
       return [];
     }
 
-    return board.ownerIds;
+    return await getBoardOwners(ctx, args.boardId);
   },
 });
 
@@ -588,30 +860,48 @@ export const addViewer = mutation({
     }
 
     // Check if user is owner or editor
-    const isOwner = board.ownerIds.includes(identity.subject);
-    const isEditor = board.editorIds?.includes(identity.subject) ?? false;
-    if (!isOwner && !isEditor) {
-      throw new Error("Unauthorized: Only owners or editors can add viewers");
-    }
+    await requireOwnerOrEditor(
+      ctx,
+      args.boardId,
+      identity.subject,
+      "Unauthorized: Only owners or editors can add viewers"
+    );
 
     if (board.visibility !== "restricted") {
       throw new Error("Can only add viewers to restricted boards");
     }
 
-    const viewerIds = board.viewerIds ?? [];
-    if (viewerIds.includes(args.userId)) {
-      return null; // Already a viewer
+    // Check if already a viewer, editor, or owner
+    const existingMember = await ctx.db
+      .query("boardMembers")
+      .withIndex("by_boardId_and_userId", (q) =>
+        q.eq("boardId", args.boardId).eq("userId", args.userId)
+      )
+      .unique();
+
+    if (existingMember) {
+      if (existingMember.role === "viewer") {
+        return null; // Already a viewer
+      }
+      if (existingMember.role === "owner" || existingMember.role === "editor") {
+        return null; // Owner/editor is already implicitly a viewer
+      }
     }
 
-    // Ensure owners are always in viewerIds
-    const ownerIdsSet = new Set(board.ownerIds);
-    if (ownerIdsSet.has(args.userId)) {
+    // Ensure owners are always in viewerIds (they're already owners, so skip)
+    const ownerIds = await getBoardOwners(ctx, args.boardId);
+    if (ownerIds.includes(args.userId)) {
       return null; // Owner is already implicitly a viewer
     }
 
-    viewerIds.push(args.userId);
+    await setBoardMember(
+      ctx,
+      args.boardId,
+      args.userId,
+      "viewer",
+      identity.org_id as string
+    );
     await ctx.db.patch(args.boardId, {
-      viewerIds,
       updatedAt: Date.now(),
     });
 
@@ -661,27 +951,32 @@ export const removeViewer = mutation({
     }
 
     // Check if user is owner or editor
-    const isOwner = board.ownerIds.includes(identity.subject);
-    const isEditor = board.editorIds?.includes(identity.subject) ?? false;
-    if (!isOwner && !isEditor) {
-      throw new Error(
-        "Unauthorized: Only owners or editors can remove viewers"
-      );
-    }
+    await requireOwnerOrEditor(
+      ctx,
+      args.boardId,
+      identity.subject,
+      "Unauthorized: Only owners or editors can remove viewers"
+    );
 
     // Cannot remove owners
-    if (board.ownerIds.includes(args.userId)) {
+    const ownerIds = await getBoardOwners(ctx, args.boardId);
+    if (ownerIds.includes(args.userId)) {
       throw new Error("Cannot remove owners from viewers");
     }
 
-    const viewerIds = board.viewerIds ?? [];
-    if (!viewerIds.includes(args.userId)) {
+    const existingMember = await ctx.db
+      .query("boardMembers")
+      .withIndex("by_boardId_and_userId", (q) =>
+        q.eq("boardId", args.boardId).eq("userId", args.userId)
+      )
+      .unique();
+
+    if (!existingMember || existingMember.role !== "viewer") {
       return null; // Not a viewer
     }
 
-    const updatedViewerIds = viewerIds.filter((id) => id !== args.userId);
+    await removeBoardMember(ctx, args.boardId, args.userId);
     await ctx.db.patch(args.boardId, {
-      viewerIds: updatedViewerIds,
       updatedAt: Date.now(),
     });
 
@@ -711,25 +1006,38 @@ export const addEditor = mutation({
     }
 
     // Check if user is owner or editor
-    const isOwner = board.ownerIds.includes(identity.subject);
-    const isEditor = board.editorIds?.includes(identity.subject) ?? false;
-    if (!isOwner && !isEditor) {
-      throw new Error("Unauthorized: Only owners or editors can add editors");
-    }
+    await requireOwnerOrEditor(
+      ctx,
+      args.boardId,
+      identity.subject,
+      "Unauthorized: Only owners or editors can add editors"
+    );
 
     // Owners are already editors, don't add them
-    if (board.ownerIds.includes(args.userId)) {
+    const ownerIds = await getBoardOwners(ctx, args.boardId);
+    if (ownerIds.includes(args.userId)) {
       return null;
     }
 
-    const editorIds = board.editorIds ?? [];
-    if (editorIds.includes(args.userId)) {
+    const existingMember = await ctx.db
+      .query("boardMembers")
+      .withIndex("by_boardId_and_userId", (q) =>
+        q.eq("boardId", args.boardId).eq("userId", args.userId)
+      )
+      .unique();
+
+    if (existingMember && existingMember.role === "editor") {
       return null; // Already an editor
     }
 
-    editorIds.push(args.userId);
+    await setBoardMember(
+      ctx,
+      args.boardId,
+      args.userId,
+      "editor",
+      identity.org_id as string
+    );
     await ctx.db.patch(args.boardId, {
-      editorIds,
       updatedAt: Date.now(),
     });
 
@@ -779,27 +1087,32 @@ export const removeEditor = mutation({
     }
 
     // Check if user is owner or editor
-    const isOwner = board.ownerIds.includes(identity.subject);
-    const isEditor = board.editorIds?.includes(identity.subject) ?? false;
-    if (!isOwner && !isEditor) {
-      throw new Error(
-        "Unauthorized: Only owners or editors can remove editors"
-      );
-    }
+    await requireOwnerOrEditor(
+      ctx,
+      args.boardId,
+      identity.subject,
+      "Unauthorized: Only owners or editors can remove editors"
+    );
 
     // Cannot remove owners
-    if (board.ownerIds.includes(args.userId)) {
+    const ownerIds = await getBoardOwners(ctx, args.boardId);
+    if (ownerIds.includes(args.userId)) {
       throw new Error("Cannot remove owners from editors");
     }
 
-    const editorIds = board.editorIds ?? [];
-    if (!editorIds.includes(args.userId)) {
+    const existingMember = await ctx.db
+      .query("boardMembers")
+      .withIndex("by_boardId_and_userId", (q) =>
+        q.eq("boardId", args.boardId).eq("userId", args.userId)
+      )
+      .unique();
+
+    if (!existingMember || existingMember.role !== "editor") {
       return null; // Not an editor
     }
 
-    const updatedEditorIds = editorIds.filter((id) => id !== args.userId);
+    await removeBoardMember(ctx, args.boardId, args.userId);
     await ctx.db.patch(args.boardId, {
-      editorIds: updatedEditorIds,
       updatedAt: Date.now(),
     });
 
@@ -841,30 +1154,29 @@ export const addOwner = mutation({
     }
 
     // Only owners can add owners
-    if (!board.ownerIds.includes(identity.subject)) {
+    const userIsOwner = await isUserOwner(ctx, args.boardId, identity.subject);
+    if (!userIsOwner) {
       throw new Error("Unauthorized: Only owners can add owners");
     }
 
-    if (board.ownerIds.includes(args.userId)) {
+    const ownerIds = await getBoardOwners(ctx, args.boardId);
+    if (ownerIds.includes(args.userId)) {
       return null; // Already an owner
     }
 
-    const updatedOwnerIds = [...board.ownerIds, args.userId];
+    await setBoardMember(
+      ctx,
+      args.boardId,
+      args.userId,
+      "owner",
+      identity.org_id as string
+    );
     await ctx.db.patch(args.boardId, {
-      ownerIds: updatedOwnerIds,
       updatedAt: Date.now(),
     });
 
-    // Ensure new owner is in viewerIds (if restricted) and editorIds
-    if (board.visibility === "restricted") {
-      const viewerIds = board.viewerIds ?? [];
-      if (!viewerIds.includes(args.userId)) {
-        viewerIds.push(args.userId);
-        await ctx.db.patch(args.boardId, {
-          viewerIds,
-        });
-      }
-    }
+    // Ensure new owner is a viewer if board is restricted (owners are implicitly viewers)
+    // This is handled by the role hierarchy, but we ensure the member exists
 
     // Auto-subscribe new owner to board
     await ctx.scheduler.runAfter(0, internal.activity.subscribeUserToBoard, {
@@ -913,12 +1225,14 @@ export const removeOwner = mutation({
     }
 
     // Only owners can remove owners
-    if (!board.ownerIds.includes(identity.subject)) {
+    const userIsOwner = await isUserOwner(ctx, args.boardId, identity.subject);
+    if (!userIsOwner) {
       throw new Error("Unauthorized: Only owners can remove owners");
     }
 
+    const ownerIds = await getBoardOwners(ctx, args.boardId);
     // Cannot remove if it would leave board with 0 owners
-    if (board.ownerIds.length <= 1) {
+    if (ownerIds.length <= 1) {
       throw new Error("Cannot remove the last owner");
     }
 
@@ -927,13 +1241,12 @@ export const removeOwner = mutation({
       throw new Error("Owners cannot remove themselves");
     }
 
-    if (!board.ownerIds.includes(args.userId)) {
+    if (!ownerIds.includes(args.userId)) {
       return null; // Not an owner
     }
 
-    const updatedOwnerIds = board.ownerIds.filter((id) => id !== args.userId);
+    await removeBoardMember(ctx, args.boardId, args.userId);
     await ctx.db.patch(args.boardId, {
-      ownerIds: updatedOwnerIds,
       updatedAt: Date.now(),
     });
 
@@ -975,7 +1288,8 @@ export const remove = mutation({
     }
 
     // Only owners can delete a board
-    if (!board.ownerIds.includes(identity.subject)) {
+    const userIsOwner = await isUserOwner(ctx, args.boardId, identity.subject);
+    if (!userIsOwner) {
       throw new Error("Unauthorized: Only owners can delete a board");
     }
 

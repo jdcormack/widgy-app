@@ -25,7 +25,11 @@ const eventTypeValidator = v.union(
   v.literal("user_removed_as_board_editor"),
   v.literal("user_added_as_board_owner"),
   v.literal("user_removed_as_board_owner"),
-  v.literal("board_ownership_transferred")
+  v.literal("board_ownership_transferred"),
+  v.literal("announcement_created"),
+  v.literal("announcement_published"),
+  v.literal("announcement_updated"),
+  v.literal("announcement_deleted")
 );
 
 // Metadata validator
@@ -38,6 +42,7 @@ const metadataValidator = v.optional(
     targetUserId: v.optional(v.string()),
     cardTitle: v.optional(v.string()),
     boardName: v.optional(v.string()),
+    announcementTitle: v.optional(v.string()),
   })
 );
 
@@ -50,6 +55,7 @@ const activityEventValidator = v.object({
   boardId: v.optional(v.id("boards")),
   cardId: v.optional(v.id("cards")),
   commentId: v.optional(v.id("comments")),
+  announcementId: v.optional(v.id("announcements")),
   organizationId: v.string(),
   metadata: metadataValidator,
 });
@@ -69,6 +75,7 @@ export const logEvent = internalMutation({
     boardId: v.optional(v.id("boards")),
     cardId: v.optional(v.id("cards")),
     commentId: v.optional(v.id("comments")),
+    announcementId: v.optional(v.id("announcements")),
     organizationId: v.string(),
     metadata: metadataValidator,
   },
@@ -80,6 +87,7 @@ export const logEvent = internalMutation({
       boardId: args.boardId,
       cardId: args.cardId,
       commentId: args.commentId,
+      announcementId: args.announcementId,
       organizationId: args.organizationId,
       metadata: args.metadata,
     });
@@ -524,6 +532,11 @@ export const getActivityFeed = query({
 
     // Filter events based on subscriptions and mutes
     const filteredEvents = results.page.filter((event) => {
+      // Announcement events are visible to all authenticated org members
+      if (event.announcementId) {
+        return true;
+      }
+
       // Skip muted cards
       if (event.cardId && mutedCardIds.has(event.cardId)) {
         return false;

@@ -9,6 +9,7 @@
  */
 
 import type * as activity from "../activity.js";
+import type * as announcements from "../announcements.js";
 import type * as boards from "../boards.js";
 import type * as cards from "../cards.js";
 import type * as comments from "../comments.js";
@@ -23,6 +24,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   activity: typeof activity;
+  announcements: typeof announcements;
   boards: typeof boards;
   cards: typeof cards;
   comments: typeof comments;

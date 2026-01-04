@@ -120,9 +120,8 @@ export const recomputeFeedbackStatus = internalMutation({
         if (card.status === "done") {
           doneCount++;
         }
-      } 
+      }
     }
-
 
     // Determine new status based on card completion
     let newStatus:
@@ -636,7 +635,7 @@ export const toggleVote = mutation({
         // Remove vote
         await ctx.db.delete(existingVote._id);
       } else {
-        // Add vote
+        // vote
         await ctx.db.insert("feedbackVotes", {
           feedbackId: args.feedbackId,
           organizationId: feedback.organizationId,

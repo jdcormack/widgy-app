@@ -139,6 +139,18 @@ export default defineSchema({
     .index("by_userId_and_organizationId", ["userId", "organizationId"])
     .index("by_cardId_and_userId", ["cardId", "userId"]),
 
+  announcements: defineTable({
+    title: v.string(),
+    details: v.string(), // Markdown from lexical editor
+    status: v.union(v.literal("draft"), v.literal("published")),
+    organizationId: v.string(),
+    authorId: v.string(), // Clerk user ID
+    publishedAt: v.optional(v.number()), // Timestamp when published
+    updatedAt: v.number(),
+  })
+    .index("by_organizationId", ["organizationId"])
+    .index("by_organizationId_and_status", ["organizationId", "status"]),
+
   activityEvents: defineTable({
     eventType: v.union(
       v.literal("card_status_changed"),
@@ -157,12 +169,17 @@ export default defineSchema({
       v.literal("user_removed_as_board_editor"),
       v.literal("user_added_as_board_owner"),
       v.literal("user_removed_as_board_owner"),
-      v.literal("board_ownership_transferred")
+      v.literal("board_ownership_transferred"),
+      v.literal("announcement_created"),
+      v.literal("announcement_published"),
+      v.literal("announcement_updated"),
+      v.literal("announcement_deleted")
     ),
     actorId: v.string(), // Clerk user ID of the user who performed the action
     boardId: v.optional(v.id("boards")),
     cardId: v.optional(v.id("cards")),
     commentId: v.optional(v.id("comments")),
+    announcementId: v.optional(v.id("announcements")),
     organizationId: v.string(),
     metadata: v.optional(
       v.object({
@@ -173,6 +190,7 @@ export default defineSchema({
         targetUserId: v.optional(v.string()),
         cardTitle: v.optional(v.string()), // For context when card is deleted
         boardName: v.optional(v.string()), // For context in activity feed
+        announcementTitle: v.optional(v.string()), // For context in activity feed
       })
     ),
   })

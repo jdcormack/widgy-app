@@ -15,6 +15,7 @@ import {
   Crown,
   Edit,
   Users,
+  Megaphone,
 } from "lucide-react";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 
@@ -35,7 +36,11 @@ type EventType =
   | "user_removed_as_board_editor"
   | "user_added_as_board_owner"
   | "user_removed_as_board_owner"
-  | "board_ownership_transferred";
+  | "board_ownership_transferred"
+  | "announcement_created"
+  | "announcement_published"
+  | "announcement_updated"
+  | "announcement_deleted";
 
 interface ActivityEvent {
   _id: Id<"activityEvents">;
@@ -45,6 +50,7 @@ interface ActivityEvent {
   boardId?: Id<"boards">;
   cardId?: Id<"cards">;
   commentId?: Id<"comments">;
+  announcementId?: Id<"announcements">;
   organizationId: string;
   metadata?: {
     oldValue?: string;
@@ -54,6 +60,7 @@ interface ActivityEvent {
     targetUserId?: string;
     cardTitle?: string;
     boardName?: string;
+    announcementTitle?: string;
   };
 }
 
@@ -93,6 +100,11 @@ function getEventIcon(eventType: EventType) {
     case "user_removed_as_board_owner":
     case "board_ownership_transferred":
       return <Crown className="h-4 w-4" />;
+    case "announcement_created":
+    case "announcement_published":
+    case "announcement_updated":
+    case "announcement_deleted":
+      return <Megaphone className="h-4 w-4" />;
     default:
       return <RefreshCw className="h-4 w-4" />;
   }
@@ -107,7 +119,7 @@ function formatStatus(status: string | undefined): string {
 }
 
 export function ActivityItem({ event, subdomain }: ActivityItemProps) {
-  const { eventType, metadata, cardId, boardId, _creationTime } = event;
+  const { eventType, metadata, cardId, boardId, announcementId, _creationTime } = event;
 
   const timeAgo = formatDistanceToNow(new Date(_creationTime), {
     addSuffix: true,
@@ -293,14 +305,57 @@ export function ActivityItem({ event, subdomain }: ActivityItemProps) {
           </p>
         );
 
+      case "announcement_created":
+        return (
+          <p className="text-sm">
+            Created announcement{" "}
+            <span className="font-medium">
+              {metadata?.announcementTitle || "Untitled"}
+            </span>
+          </p>
+        );
+
+      case "announcement_published":
+        return (
+          <p className="text-sm">
+            Published announcement{" "}
+            <span className="font-medium">
+              {metadata?.announcementTitle || "Untitled"}
+            </span>
+          </p>
+        );
+
+      case "announcement_updated":
+        return (
+          <p className="text-sm">
+            Updated announcement{" "}
+            <span className="font-medium">
+              {metadata?.announcementTitle || "Untitled"}
+            </span>
+          </p>
+        );
+
+      case "announcement_deleted":
+        return (
+          <p className="text-sm">
+            Deleted announcement{" "}
+            <span className="font-medium">
+              {metadata?.announcementTitle || "Untitled"}
+            </span>
+          </p>
+        );
+
       default:
         return <p className="text-sm">Activity event</p>;
     }
   };
 
   const getLink = () => {
-    if (eventType === "card_deleted") {
-      return null; // Can't link to a deleted card
+    if (eventType === "card_deleted" || eventType === "announcement_deleted") {
+      return null; // Can't link to deleted items
+    }
+    if (announcementId) {
+      return `/announcements`;
     }
     if (cardId) {
       return `/cards/${cardId}`;

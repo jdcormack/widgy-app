@@ -1,27 +1,34 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
+import { internal } from "./_generated/api";
 
 // Validators for feedback
+const feedbackStatusValidator = v.union(
+  v.literal("pending_screening"),
+  v.literal("screened_in"),
+  v.literal("archived"),
+  v.literal("duplicate"),
+  v.literal("work_planned"),
+  v.literal("in_progress"),
+  v.literal("ready_for_release"),
+  v.literal("released")
+);
+
 const feedbackValidator = v.object({
   _id: v.id("feedback"),
   _creationTime: v.number(),
   title: v.string(),
   description: v.string(),
   category: v.union(v.literal("bug"), v.literal("feature")),
-  status: v.union(
-    v.literal("pending_screening"),
-    v.literal("screened_in"),
-    v.literal("archived"),
-    v.literal("duplicate")
-  ),
+  status: feedbackStatusValidator,
   userId: v.optional(v.string()),
   onBehalfOfEmail: v.optional(v.string()),
   organizationId: v.string(),
   duplicateOfId: v.optional(v.id("feedback")),
   origin: v.optional(v.string()),
-  shippedAt: v.optional(v.number()),
+  releasedAt: v.optional(v.number()),
   updatedAt: v.number(),
 });
 
@@ -31,18 +38,13 @@ const feedbackWithVoteCountValidator = v.object({
   title: v.string(),
   description: v.string(),
   category: v.union(v.literal("bug"), v.literal("feature")),
-  status: v.union(
-    v.literal("pending_screening"),
-    v.literal("screened_in"),
-    v.literal("archived"),
-    v.literal("duplicate")
-  ),
+  status: feedbackStatusValidator,
   userId: v.optional(v.string()),
   onBehalfOfEmail: v.optional(v.string()),
   organizationId: v.string(),
   duplicateOfId: v.optional(v.id("feedback")),
   origin: v.optional(v.string()),
-  shippedAt: v.optional(v.number()),
+  releasedAt: v.optional(v.number()),
   updatedAt: v.number(),
   voteCount: v.number(),
 });
@@ -58,6 +60,97 @@ const cardValidator = v.object({
   assignedTo: v.optional(v.string()),
   status: v.optional(v.string()),
   updatedAt: v.optional(v.number()),
+});
+
+/**
+ * Internal mutation to recompute and update feedback status.
+ */
+export const recomputeFeedbackStatus = internalMutation({
+  args: {
+    feedbackId: v.id("feedback"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const feedback = await ctx.db.get(args.feedbackId);
+    if (!feedback) {
+      throw new Error("Feedback not found");
+    }
+
+    // If feedback is in screening states, keep as-is
+    if (
+      feedback.status === "pending_screening" ||
+      feedback.status === "archived" ||
+      feedback.status === "duplicate"
+    ) {
+      return null;
+    }
+
+    // If released, keep as released
+    if (feedback.releasedAt) {
+      await ctx.db.patch(args.feedbackId, {
+        status: "released",
+        updatedAt: Date.now(),
+      });
+      return null;
+    }
+
+    // Get all linked cards
+    const links = await ctx.db
+      .query("feedbackCardLinks")
+      .withIndex("by_feedbackId", (q) => q.eq("feedbackId", args.feedbackId))
+      .collect();
+
+    // If no cards, set to screened_in
+    if (links.length === 0) {
+      await ctx.db.patch(args.feedbackId, {
+        status: "screened_in",
+        updatedAt: Date.now(),
+      });
+      return null;
+    }
+
+    // Check card completion status
+    let doneCount = 0;
+    let totalCount = 0;
+
+    for (const link of links) {
+      const card = await ctx.db.get(link.cardId);
+      if (card) {
+        totalCount++;
+        if (card.status === "done") {
+          doneCount++;
+        }
+      } 
+    }
+
+
+    // Determine new status based on card completion
+    let newStatus:
+      | "screened_in"
+      | "work_planned"
+      | "in_progress"
+      | "ready_for_release";
+
+    // All cards done -> ready_for_release
+    if (doneCount === totalCount) {
+      newStatus = "ready_for_release";
+    }
+    // Some cards done -> in_progress
+    else if (doneCount > 0) {
+      newStatus = "in_progress";
+    }
+    // Has cards but none done -> work_planned
+    else {
+      newStatus = "work_planned";
+    }
+
+    await ctx.db.patch(args.feedbackId, {
+      status: newStatus,
+      updatedAt: Date.now(),
+    });
+
+    return null;
+  },
 });
 
 /**
@@ -395,6 +488,7 @@ export const markDuplicate = mutation({
 /**
  * Mark feedback as shipped.
  * Validates all linked cards are done.
+ * @deprecated Use markAsReleased instead
  */
 export const ship = mutation({
   args: {
@@ -439,9 +533,136 @@ export const ship = mutation({
     }
 
     await ctx.db.patch(args.feedbackId, {
-      shippedAt: Date.now(),
+      releasedAt: Date.now(),
+      status: "released",
       updatedAt: Date.now(),
     });
+
+    return null;
+  },
+});
+
+/**
+ * Mark feedback as released.
+ * Sets releasedAt timestamp and status to "released".
+ * Can only be called on feedback in "ready_for_release" status.
+ */
+export const markAsReleased = mutation({
+  args: {
+    feedbackId: v.id("feedback"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (!identity || !identity.org_id) {
+      throw new Error(
+        "Unauthorized: Must be logged in to mark feedback as released"
+      );
+    }
+
+    const feedback = await ctx.db.get(args.feedbackId);
+    if (!feedback) {
+      throw new Error("Feedback not found");
+    }
+
+    if (feedback.organizationId !== identity.org_id) {
+      throw new Error(
+        "Unauthorized: Cannot mark feedback from another organization as released"
+      );
+    }
+
+    // Can only release feedback that is ready for release
+    if (feedback.status !== "ready_for_release") {
+      throw new Error(
+        "Only feedback in 'ready_for_release' status can be marked as released"
+      );
+    }
+
+    // Cannot release if already released
+    if (feedback.releasedAt) {
+      throw new Error("Feedback is already released");
+    }
+
+    await ctx.db.patch(args.feedbackId, {
+      releasedAt: Date.now(),
+      status: "released",
+      updatedAt: Date.now(),
+    });
+
+    return null;
+  },
+});
+
+/**
+ * Toggle vote on feedback.
+ * If user has voted, removes the vote. If not, adds a vote.
+ * Requires either authentication or email.
+ */
+export const toggleVote = mutation({
+  args: {
+    feedbackId: v.id("feedback"),
+    email: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    const feedback = await ctx.db.get(args.feedbackId);
+
+    if (!feedback) {
+      throw new Error("Feedback not found");
+    }
+
+    // Check if feedback is released - cannot vote on released feedback
+    if (feedback.releasedAt || feedback.status === "released") {
+      throw new Error("Cannot vote on released feedback");
+    }
+
+    // Must have either auth or email
+    if (!identity && !args.email) {
+      throw new Error("Must be logged in or provide email to vote");
+    }
+
+    let existingVote;
+    if (identity) {
+      existingVote = await ctx.db
+        .query("feedbackVotes")
+        .withIndex("by_feedbackId_and_userId", (q) =>
+          q.eq("feedbackId", args.feedbackId).eq("userId", identity.subject)
+        )
+        .unique();
+
+      if (existingVote) {
+        // Remove vote
+        await ctx.db.delete(existingVote._id);
+      } else {
+        // Add vote
+        await ctx.db.insert("feedbackVotes", {
+          feedbackId: args.feedbackId,
+          organizationId: feedback.organizationId,
+          userId: identity.subject,
+        });
+      }
+    } else if (args.email) {
+      existingVote = await ctx.db
+        .query("feedbackVotes")
+        .withIndex("by_feedbackId_and_email", (q) =>
+          q.eq("feedbackId", args.feedbackId).eq("email", args.email)
+        )
+        .unique();
+
+      if (existingVote) {
+        // Remove vote
+        await ctx.db.delete(existingVote._id);
+      } else {
+        // Add vote
+        await ctx.db.insert("feedbackVotes", {
+          feedbackId: args.feedbackId,
+          organizationId: feedback.organizationId,
+          email: args.email,
+        });
+      }
+    }
 
     return null;
   },
@@ -474,9 +695,9 @@ export const linkCard = mutation({
       );
     }
 
-    // Cannot link cards to shipped feedback
-    if (feedback.shippedAt) {
-      throw new Error("Cannot link cards to shipped feedback");
+    // Cannot link cards to released feedback
+    if (feedback.releasedAt || feedback.status === "released") {
+      throw new Error("Cannot link cards to released feedback");
     }
 
     const card = await ctx.db.get(args.cardId);
@@ -505,6 +726,11 @@ export const linkCard = mutation({
       feedbackId: args.feedbackId,
       cardId: args.cardId,
       organizationId: identity.org_id as string,
+    });
+
+    // Recompute feedback status after linking card
+    await ctx.scheduler.runAfter(0, internal.feedback.recomputeFeedbackStatus, {
+      feedbackId: args.feedbackId,
     });
 
     return null;
@@ -538,9 +764,9 @@ export const unlinkCard = mutation({
       );
     }
 
-    // Cannot unlink cards from shipped feedback
-    if (feedback.shippedAt) {
-      throw new Error("Cannot unlink cards from shipped feedback");
+    // Cannot unlink cards from released feedback
+    if (feedback.releasedAt || feedback.status === "released") {
+      throw new Error("Cannot unlink cards from released feedback");
     }
 
     const links = await ctx.db
@@ -554,6 +780,11 @@ export const unlinkCard = mutation({
     }
 
     await ctx.db.delete(linkToRemove._id);
+
+    // Recompute feedback status after unlinking card
+    await ctx.scheduler.runAfter(0, internal.feedback.recomputeFeedbackStatus, {
+      feedbackId: args.feedbackId,
+    });
 
     return null;
   },
@@ -606,18 +837,38 @@ export const list = query({
       }
     }
 
-    // Get screened-in feedback only
-    const results = await ctx.db
+    // Get all feedback for organization (excluding archived, pending_screening, and released)
+    const allFeedback = await ctx.db
       .query("feedback")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", args.organizationId).eq("status", "screened_in")
+      .withIndex("by_organizationId", (q) =>
+        q.eq("organizationId", args.organizationId)
       )
       .order("desc")
-      .paginate(args.paginationOpts);
+      .collect();
+
+    // Filter out archived, pending_screening, and released
+    const filteredFeedback = allFeedback.filter(
+      (f) =>
+        f.status !== "archived" &&
+        f.status !== "pending_screening" &&
+        f.status !== "released" &&
+        !f.releasedAt
+    );
+
+    // Manual pagination
+    const cursor = args.paginationOpts.cursor
+      ? parseInt(args.paginationOpts.cursor, 10)
+      : 0;
+    const numItems = args.paginationOpts.numItems;
+    const startIndex = cursor;
+    const endIndex = startIndex + numItems;
+    const page = filteredFeedback.slice(startIndex, endIndex);
+    const isDone = endIndex >= filteredFeedback.length;
+    const continueCursor = isDone ? "" : endIndex.toString();
 
     // Add vote counts
     const feedbackWithVotes = await Promise.all(
-      results.page.map(async (feedback) => {
+      page.map(async (feedback) => {
         const votes = await ctx.db
           .query("feedbackVotes")
           .withIndex("by_feedbackId", (q) => q.eq("feedbackId", feedback._id))
@@ -635,8 +886,143 @@ export const list = query({
     });
 
     return {
-      ...results,
       page: feedbackWithVotes,
+      isDone,
+      continueCursor,
+    };
+  },
+});
+
+/**
+ * Get roadmap data for an organization.
+ * Returns feedback grouped by status for kanban board display.
+ * Filters out screened-out items (pending_screening, archived, duplicate) for public view.
+ * Includes all items for authenticated users with flag.
+ */
+export const getRoadmap = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.object({
+    backlog: v.array(feedbackWithVoteCountValidator),
+    planned: v.array(feedbackWithVoteCountValidator),
+    inProgress: v.array(feedbackWithVoteCountValidator),
+    readyForRelease: v.array(feedbackWithVoteCountValidator),
+    released: v.array(feedbackWithVoteCountValidator),
+  }),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    // Check visibility settings
+    const settings = await ctx.db
+      .query("feedbackSettings")
+      .withIndex("by_organizationId", (q) =>
+        q.eq("organizationId", args.organizationId)
+      )
+      .unique();
+
+    const visibility = settings?.visibility ?? "private";
+
+    // If private, require org membership
+    if (visibility === "private") {
+      if (!identity || identity.org_id !== args.organizationId) {
+        return {
+          backlog: [],
+          planned: [],
+          inProgress: [],
+          readyForRelease: [],
+          released: [],
+        };
+      }
+    }
+
+    // Get all feedback for organization
+    const allFeedback = await ctx.db
+      .query("feedback")
+      .withIndex("by_organizationId", (q) =>
+        q.eq("organizationId", args.organizationId)
+      )
+      .collect();
+
+    // Filter out screened-out items for public view
+    // Authenticated users see all items
+    const visibleFeedback = allFeedback.filter((f) => {
+      if (identity && identity.org_id === args.organizationId) {
+        // Authenticated org members see everything
+        return true;
+      }
+      // Public view: exclude pending_screening, archived, duplicate
+      return (
+        f.status !== "pending_screening" &&
+        f.status !== "archived" &&
+        f.status !== "duplicate"
+      );
+    });
+
+    // Add vote counts and group by status
+    const feedbackWithVotes = await Promise.all(
+      visibleFeedback.map(async (feedback) => {
+        const votes = await ctx.db
+          .query("feedbackVotes")
+          .withIndex("by_feedbackId", (q) => q.eq("feedbackId", feedback._id))
+          .collect();
+        return { ...feedback, voteCount: votes.length };
+      })
+    );
+
+    // Group by status
+    const backlog: Array<(typeof feedbackWithVotes)[number]> = [];
+    const planned: Array<(typeof feedbackWithVotes)[number]> = [];
+    const inProgress: Array<(typeof feedbackWithVotes)[number]> = [];
+    const readyForRelease: Array<(typeof feedbackWithVotes)[number]> = [];
+    const released: Array<(typeof feedbackWithVotes)[number]> = [];
+
+    for (const feedback of feedbackWithVotes) {
+      switch (feedback.status) {
+        case "screened_in":
+          backlog.push(feedback);
+          break;
+        case "work_planned":
+          planned.push(feedback);
+          break;
+        case "in_progress":
+          inProgress.push(feedback);
+          break;
+        case "ready_for_release":
+          // Combine ready_for_release with in_progress for display
+          inProgress.push(feedback);
+          readyForRelease.push(feedback); // Keep separate for reference if needed
+          break;
+        case "released":
+          released.push(feedback);
+          break;
+        // Ignore pending_screening, archived, duplicate (filtered out above)
+      }
+    }
+
+    // Sort each group by vote count (descending), then by creation time (descending)
+    const sortFeedback = (
+      a: (typeof feedbackWithVotes)[number],
+      b: (typeof feedbackWithVotes)[number]
+    ) => {
+      if (b.voteCount !== a.voteCount) {
+        return b.voteCount - a.voteCount;
+      }
+      return b._creationTime - a._creationTime;
+    };
+
+    backlog.sort(sortFeedback);
+    planned.sort(sortFeedback);
+    inProgress.sort(sortFeedback);
+    readyForRelease.sort(sortFeedback);
+    released.sort(sortFeedback);
+
+    return {
+      backlog,
+      planned,
+      inProgress,
+      readyForRelease,
+      released,
     };
   },
 });
@@ -903,13 +1289,21 @@ export const getFeedbackByCardId = query({
       title: string;
       description: string;
       category: "bug" | "feature";
-      status: "pending_screening" | "screened_in" | "archived" | "duplicate";
+      status:
+        | "pending_screening"
+        | "screened_in"
+        | "archived"
+        | "duplicate"
+        | "work_planned"
+        | "in_progress"
+        | "ready_for_release"
+        | "released";
       userId?: string;
       onBehalfOfEmail?: string;
       organizationId: string;
       duplicateOfId?: Id<"feedback">;
       origin?: string;
-      shippedAt?: number;
+      releasedAt?: number;
       updatedAt: number;
     }> = [];
     for (const link of links) {

@@ -472,6 +472,8 @@ export const updateStatus = mutation({
     }
 
     const oldStatus = card.status;
+    const wasDone = oldStatus === "done";
+    const isNowDone = args.status === "done";
 
     await ctx.db.patch(args.cardId, {
       status: args.status,
@@ -492,6 +494,22 @@ export const updateStatus = mutation({
           cardTitle: card.title,
         },
       });
+    }
+
+    // If card status changed to/from "done", trigger feedback status recalculation
+    if (wasDone !== isNowDone) {
+      // Find all feedback linked to this card
+      const links = await ctx.db
+        .query("feedbackCardLinks")
+        .withIndex("by_cardId", (q) => q.eq("cardId", args.cardId))
+        .collect();
+
+      // Recompute status for each linked feedback
+      for (const link of links) {
+        await ctx.scheduler.runAfter(0, internal.feedback.recomputeFeedbackStatus, {
+          feedbackId: link.feedbackId,
+        });
+      }
     }
 
     // Update board timestamp

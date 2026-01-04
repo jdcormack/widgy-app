@@ -61,14 +61,18 @@ export default defineSchema({
       v.literal("pending_screening"),
       v.literal("screened_in"),
       v.literal("archived"),
-      v.literal("duplicate")
+      v.literal("duplicate"),
+      v.literal("work_planned"),
+      v.literal("in_progress"),
+      v.literal("ready_for_release"),
+      v.literal("released")
     ),
     userId: v.optional(v.string()), // Clerk user ID if authenticated
     onBehalfOfEmail: v.optional(v.string()), // Email for unauthenticated submissions
     organizationId: v.string(),
     duplicateOfId: v.optional(v.id("feedback")),
     origin: v.optional(v.string()), // "email", "web", "api", etc.
-    shippedAt: v.optional(v.number()),
+    releasedAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("by_organizationId", ["organizationId"])

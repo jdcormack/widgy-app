@@ -70,7 +70,7 @@ export function FeedbackDetailClient({
     : [];
   const boards = preloadedBoards ? usePreloadedQuery(preloadedBoards) : [];
 
-  const ship = useMutation(api.feedback.ship);
+  const markAsReleased = useMutation(api.feedback.markAsReleased);
 
   // Keyboard shortcut: Escape to go back
   useEffect(() => {
@@ -96,11 +96,11 @@ export function FeedbackDetailClient({
   const handleShip = async () => {
     setIsShipping(true);
     try {
-      await ship({ feedbackId });
-      toast.success("Feedback marked as shipped!");
+      await markAsReleased({ feedbackId });
+      toast.success("Feedback marked as released!");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to ship feedback"
+        error instanceof Error ? error.message : "Failed to release feedback"
       );
     } finally {
       setIsShipping(false);
@@ -145,10 +145,10 @@ export function FeedbackDetailClient({
               Feature
             </Badge>
           )}
-          {feedback.shippedAt && (
+          {(feedback.releasedAt || feedback.status === "released") && (
             <Badge variant="default">
               <Ship className="h-3 w-3 mr-1" />
-              Shipped
+              Released
             </Badge>
           )}
         </div>
@@ -160,6 +160,7 @@ export function FeedbackDetailClient({
             feedbackId={feedbackId}
             voteCount={feedback.voteCount}
             isAuthenticated={isAuthenticated}
+            disabled={!!feedback.releasedAt || feedback.status === "released"}
           />
         </div>
 
@@ -172,9 +173,9 @@ export function FeedbackDetailClient({
                 <span> by {feedback.onBehalfOfEmail}</span>
               )}
             </p>
-            {feedback.shippedAt && (
+            {feedback.releasedAt && (
               <p className="text-sm text-green-600 mt-1">
-                Shipped on {formatDate(feedback.shippedAt)}
+                Released on {formatDate(feedback.releasedAt)}
               </p>
             )}
           </div>
@@ -203,13 +204,19 @@ export function FeedbackDetailClient({
         </div>
       </div>
 
-      {isAuthenticated && feedback.status === "screened_in" && (
+      {[
+        isAuthenticated,
+        feedback.status !== "archived",
+        feedback.status !== "pending_screening",
+        feedback.status !== "released",
+        !feedback.releasedAt,
+      ].every(Boolean) && (
         <>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg">Linked Cards</CardTitle>
               <div className="flex gap-2">
-                {!feedback.shippedAt && (
+                {!feedback.releasedAt && feedback.status !== "released" && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -219,14 +226,18 @@ export function FeedbackDetailClient({
                     Link Card
                   </Button>
                 )}
-                {!feedback.shippedAt && allCardsDone && (
+                {[
+                  !feedback.releasedAt,
+                  feedback.status !== "released",
+                  feedback.status === "ready_for_release",
+                ].every(Boolean) && (
                   <Button size="sm" onClick={handleShip} disabled={isShipping}>
                     {isShipping ? (
                       <Spinner className="h-4 w-4" />
                     ) : (
                       <>
                         <Ship className="h-4 w-4 mr-2" />
-                        Mark as Shipped
+                        Mark as Released
                       </>
                     )}
                   </Button>
@@ -237,7 +248,9 @@ export function FeedbackDetailClient({
               <LinkedCardsList
                 feedbackId={feedbackId}
                 cards={linkedCards}
-                isShipped={!!feedback.shippedAt}
+                isShipped={
+                  !!feedback.releasedAt || feedback.status === "released"
+                }
               />
             </CardContent>
           </Card>

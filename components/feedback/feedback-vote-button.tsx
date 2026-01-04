@@ -24,29 +24,30 @@ interface FeedbackVoteButtonProps {
   feedbackId: Id<"feedback">;
   voteCount: number;
   isAuthenticated: boolean;
+  disabled?: boolean;
 }
 
 export function FeedbackVoteButton({
   feedbackId,
   voteCount,
   isAuthenticated,
+  disabled = false,
 }: FeedbackVoteButtonProps) {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const hasVoted = useQuery(api.feedback.hasUserVoted, { feedbackId });
-  const vote = useMutation(api.feedback.vote);
-  const removeVote = useMutation(api.feedback.removeVote);
+  const toggleVote = useMutation(api.feedback.toggleVote);
 
   const handleVote = async () => {
+    if (disabled) {
+      return;
+    }
+
     if (isAuthenticated) {
       try {
-        if (hasVoted) {
-          await removeVote({ feedbackId });
-        } else {
-          await vote({ feedbackId });
-        }
+        await toggleVote({ feedbackId });
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Failed to update vote"
@@ -62,12 +63,12 @@ export function FeedbackVoteButton({
 
     setIsSubmitting(true);
     try {
-      await vote({ feedbackId, email });
+      await toggleVote({ feedbackId, email });
       setEmailDialogOpen(false);
       setEmail("");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to add vote"
+        error instanceof Error ? error.message : "Failed to update vote"
       );
     } finally {
       setIsSubmitting(false);
@@ -84,6 +85,7 @@ export function FeedbackVoteButton({
           hasVoted && "bg-primary text-primary-foreground"
         )}
         onClick={handleVote}
+        disabled={disabled}
       >
         <ChevronUp className="h-4 w-4" />
         <span className="text-xs font-medium">{voteCount}</span>

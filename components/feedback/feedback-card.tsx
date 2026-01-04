@@ -27,9 +27,17 @@ interface FeedbackCardProps {
     title: string;
     description: string;
     category: "bug" | "feature";
-    status: "pending_screening" | "screened_in" | "archived" | "duplicate";
+    status:
+      | "pending_screening"
+      | "screened_in"
+      | "archived"
+      | "duplicate"
+      | "work_planned"
+      | "in_progress"
+      | "ready_for_release"
+      | "released";
     voteCount: number;
-    shippedAt?: number;
+    releasedAt?: number;
   };
   isAuthenticated: boolean;
 }
@@ -97,10 +105,10 @@ export function FeedbackCard({ feedback, isAuthenticated }: FeedbackCardProps) {
               <Lightbulb className="h-4 w-4 text-yellow-500 shrink-0" />
             )}
             <CardTitle className="text-lg truncate">{feedback.title}</CardTitle>
-            {feedback.shippedAt && (
+            {(feedback.releasedAt || feedback.status === "released") && (
               <Badge variant="secondary" className="shrink-0">
                 <Ship className="h-3 w-3 mr-1" />
-                Shipped
+                Released
               </Badge>
             )}
           </div>

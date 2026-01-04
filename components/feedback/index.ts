@@ -9,3 +9,5 @@ export { LinkedCardsList } from "./linked-cards-list";
 export { ScreeningCallout } from "./screening-callout";
 export { DuplicateSearch } from "./duplicate-search";
 export { CardSearch } from "./card-search";
+export { RoadmapBoard } from "./roadmap-board";
+export { RoadmapCard } from "./roadmap-card";

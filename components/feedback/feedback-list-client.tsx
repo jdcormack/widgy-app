@@ -42,8 +42,8 @@ export function FeedbackListClient({
 
   const { results, status, loadMore } = usePaginatedQuery(
     api.feedback.list,
-    { organizationId, paginationOpts: { numItems: 20, cursor: null } },
-    { initialNumItems: 20 }
+    { organizationId },
+    { initialNumItems: 10 }
   );
 
   const feedbackItems = results ?? initialData.page;
@@ -92,18 +92,11 @@ export function FeedbackListClient({
         <h1 className="text-2xl font-bold">Feedback</h1>
         <div className="flex items-center gap-2">
           {isAuthenticated && (
-            <>
-              <Button variant="ghost" size="icon" asChild>
-                <Link href="/feedback/settings">
-                  <Settings className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button variant="ghost" size="icon" asChild title="Configuration">
-                <Link href="/configuration">
-                  <Cog className="h-4 w-4" />
-                </Link>
-              </Button>
-            </>
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/feedback/settings">
+                <Settings className="h-4 w-4" />
+              </Link>
+            </Button>
           )}
           <FeedbackCreateDialog
             open={isDialogOpen}

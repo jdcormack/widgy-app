@@ -17,6 +17,7 @@ interface CardDetailClientProps {
   preloadedCard: Preloaded<typeof api.cards.getById>;
   preloadedBoards: Preloaded<typeof api.boards.listByOrganization>;
   preloadedComments: Preloaded<typeof api.comments.listByCard>;
+  preloadedFeedback: Preloaded<typeof api.feedback.getFeedbackByCardId>;
   members: OrganizationMember[];
   currentUserId: string;
 }
@@ -25,6 +26,7 @@ export function CardDetailClient({
   preloadedCard,
   preloadedBoards,
   preloadedComments,
+  preloadedFeedback,
   members,
   currentUserId,
 }: CardDetailClientProps) {
@@ -33,6 +35,7 @@ export function CardDetailClient({
 
   const boards = usePreloadedQuery(preloadedBoards);
   const card = usePreloadedQuery(preloadedCard);
+  const feedback = usePreloadedQuery(preloadedFeedback);
   const updateCard = useMutation(api.cards.update);
 
   // Keyboard shortcuts: 'e' to enter edit mode, 'Escape' to go back
@@ -111,6 +114,7 @@ export function CardDetailClient({
         <CardDisplay
           card={card}
           boards={boards}
+          feedback={feedback}
           members={members}
           onEdit={() => setIsEditMode(true)}
         />

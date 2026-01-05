@@ -29,6 +29,7 @@ export default async function CardDetailPage({
     preloadedCard,
     preloadedBoards,
     preloadedComments,
+    preloadedFeedback,
   ] = await Promise.all([
     getOrganizationMembers(),
     getCurrentUserId(),
@@ -37,6 +38,7 @@ export default async function CardDetailPage({
       organizationId: subdomainData.organizationId,
     }),
     preloadQuery(api.comments.listByCard, { cardId }),
+    preloadQuery(api.feedback.getFeedbackByCardId, { cardId }),
   ]);
 
   return (
@@ -45,6 +47,7 @@ export default async function CardDetailPage({
         preloadedCard={preloadedCard}
         preloadedBoards={preloadedBoards}
         preloadedComments={preloadedComments}
+        preloadedFeedback={preloadedFeedback}
         members={members}
         currentUserId={currentUserId}
       />

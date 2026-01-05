@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
-import { LayoutGrid, UserIcon } from "lucide-react";
+import { LayoutGrid, UserIcon, MessageSquare } from "lucide-react";
 import { Remark } from "react-remark";
 import { type OrganizationMember } from "@/app/actions";
 import {
@@ -20,6 +20,11 @@ interface Board {
   name: string;
 }
 
+interface Feedback {
+  _id: string;
+  title: string;
+}
+
 interface Card {
   _id: string;
   title: string;
@@ -32,6 +37,7 @@ interface Card {
 interface CardDisplayProps {
   card: Card;
   boards: Board[];
+  feedback: Feedback[];
   members: OrganizationMember[];
   onEdit: () => void;
 }
@@ -39,6 +45,7 @@ interface CardDisplayProps {
 export function CardDisplay({
   card,
   boards,
+  feedback,
   members,
   onEdit,
 }: CardDisplayProps) {
@@ -142,6 +149,31 @@ export function CardDisplay({
             </Link>
           ) : (
             <span className="text-muted-foregroud">No board (untriaged)</span>
+          )}
+        </div>
+      </div>
+
+      {/* Feedback */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-muted-foregroud">Feedback</h3>
+        <div className="flex flex-col gap-2">
+          {feedback.length > 0 ? (
+            feedback.map((fb) => (
+              <div key={fb._id} className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-muted-foregroud" />
+                <Link
+                  href={`/feedback/${fb._id}`}
+                  className="text-primary hover:underline"
+                >
+                  {fb.title}
+                </Link>
+              </div>
+            ))
+          ) : (
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-muted-foregroud" />
+              <span className="text-muted-foregroud">No feedback linked</span>
+            </div>
           )}
         </div>
       </div>

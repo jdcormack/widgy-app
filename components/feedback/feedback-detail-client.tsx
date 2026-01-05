@@ -3,7 +3,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { usePreloadedQuery, useMutation, type Preloaded } from "convex/react";
+import {
+  usePreloadedQuery,
+  useMutation,
+  useQuery,
+  type Preloaded,
+} from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import type { OrganizationMember } from "@/app/actions";
@@ -23,13 +28,12 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  Bug,
-  Lightbulb,
   ArrowLeft,
   Ship,
   Link as LinkIcon,
   Plus,
   ExternalLink,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -69,6 +73,16 @@ export function FeedbackDetailClient({
     ? usePreloadedQuery(preloadedLinkedCards)
     : [];
   const boards = preloadedBoards ? usePreloadedQuery(preloadedBoards) : [];
+
+  // Get available categories
+  const categories =
+    useQuery(
+      api.feedbackSettings.getCategories,
+      feedback ? { organizationId: feedback.organizationId } : "skip"
+    ) ?? [];
+
+  const hasCategory =
+    feedback && feedback.category && categories.includes(feedback.category);
 
   const markAsReleased = useMutation(api.feedback.markAsReleased);
 
@@ -133,18 +147,8 @@ export function FeedbackDetailClient({
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex items-center gap-2">
-          {feedback.category === "bug" ? (
-            <Badge variant="destructive">
-              <Bug className="h-3 w-3 mr-1" />
-              Bug
-            </Badge>
-          ) : (
-            <Badge variant="secondary">
-              <Lightbulb className="h-3 w-3 mr-1" />
-              Feature
-            </Badge>
-          )}
+        <div className="flex items-center gap-2 capitalize">
+          {hasCategory && <Badge variant="default">{feedback.category}</Badge>}
           {(feedback.releasedAt || feedback.status === "released") && (
             <Badge variant="default">
               <Ship className="h-3 w-3 mr-1" />

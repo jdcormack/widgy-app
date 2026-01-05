@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import {
   Card,
   CardContent,
@@ -9,13 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FeedbackVoteButton } from "./feedback-vote-button";
-import {
-  Bug,
-  Lightbulb,
-  ChevronRightIcon,
-  CornerDownLeft,
-  Ship,
-} from "lucide-react";
+import { ChevronRightIcon, CornerDownLeft, Ship } from "lucide-react";
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 import { Id } from "@/convex/_generated/dataModel";
@@ -26,7 +22,7 @@ interface FeedbackCardProps {
     _creationTime: number;
     title: string;
     description: string;
-    category: "bug" | "feature";
+    category?: string;
     status:
       | "pending_screening"
       | "screened_in"
@@ -38,6 +34,7 @@ interface FeedbackCardProps {
       | "released";
     voteCount: number;
     releasedAt?: number;
+    organizationId: string;
   };
   isAuthenticated: boolean;
 }
@@ -65,6 +62,15 @@ function formatRelativeTime(timestamp: number): string {
 
 export function FeedbackCard({ feedback, isAuthenticated }: FeedbackCardProps) {
   const router = useRouter();
+
+  // Get available categories
+  const categories =
+    useQuery(api.feedbackSettings.getCategories, {
+      organizationId: feedback.organizationId,
+    }) ?? [];
+
+  const hasCategory =
+    feedback.category && categories.includes(feedback.category);
 
   const handleClick = () => {
     router.push(`/feedback/${feedback._id}`);
@@ -99,10 +105,10 @@ export function FeedbackCard({ feedback, isAuthenticated }: FeedbackCardProps) {
 
         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            {feedback.category === "bug" ? (
-              <Bug className="h-4 w-4 text-red-500 shrink-0" />
-            ) : (
-              <Lightbulb className="h-4 w-4 text-yellow-500 shrink-0" />
+            {hasCategory && (
+              <Badge variant="default" className="capitalize shrink-0">
+                {feedback.category}
+              </Badge>
             )}
             <CardTitle className="text-lg truncate">{feedback.title}</CardTitle>
             {(feedback.releasedAt || feedback.status === "released") && (

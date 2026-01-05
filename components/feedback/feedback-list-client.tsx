@@ -13,7 +13,7 @@ import { FeedbackCreateDialog } from "./feedback-create-dialog";
 import { ScreeningCallout } from "./screening-callout";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { MessageSquare, Settings } from "lucide-react";
+import { MessageSquare, Settings, Cog } from "lucide-react";
 
 interface FeedbackListClientProps {
   organizationId: string;
@@ -92,11 +92,18 @@ export function FeedbackListClient({
         <h1 className="text-2xl font-bold">Feedback</h1>
         <div className="flex items-center gap-2">
           {isAuthenticated && (
-            <Button variant="ghost" size="icon" asChild>
-              <Link href="/feedback/settings">
-                <Settings className="h-4 w-4" />
-              </Link>
-            </Button>
+            <>
+              <Button variant="ghost" size="icon" asChild>
+                <Link href="/feedback/settings">
+                  <Settings className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button variant="ghost" size="icon" asChild title="Configuration">
+                <Link href="/configuration">
+                  <Cog className="h-4 w-4" />
+                </Link>
+              </Button>
+            </>
           )}
           <FeedbackCreateDialog
             open={isDialogOpen}

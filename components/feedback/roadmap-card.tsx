@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import {
   Card,
   CardContent,
@@ -9,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FeedbackVoteButton } from "./feedback-vote-button";
-import { Bug, Lightbulb, Ship, CheckCircle2 } from "lucide-react";
+import { Ship, CheckCircle2, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Id } from "@/convex/_generated/dataModel";
 
@@ -19,7 +21,7 @@ interface RoadmapCardProps {
     _creationTime: number;
     title: string;
     description: string;
-    category: "bug" | "feature";
+    category?: string;
     status:
       | "pending_screening"
       | "screened_in"
@@ -31,6 +33,7 @@ interface RoadmapCardProps {
       | "released";
     voteCount: number;
     releasedAt?: number;
+    organizationId: string;
   };
   isAuthenticated: boolean;
 }
@@ -38,6 +41,15 @@ interface RoadmapCardProps {
 export function RoadmapCard({ feedback, isAuthenticated }: RoadmapCardProps) {
   const isReleased = feedback.status === "released" || !!feedback.releasedAt;
   const isReadyForRelease = feedback.status === "ready_for_release";
+
+  // Get available categories
+  const categories =
+    useQuery(api.feedbackSettings.getCategories, {
+      organizationId: feedback.organizationId,
+    }) ?? [];
+
+  const hasCategory =
+    feedback.category && categories.includes(feedback.category);
 
   return (
     <Link href={`/feedback/${feedback._id}`} className="block">
@@ -52,10 +64,13 @@ export function RoadmapCard({ feedback, isAuthenticated }: RoadmapCardProps) {
         <CardContent className="p-4 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              {feedback.category === "bug" ? (
-                <Bug className="h-4 w-4 text-red-500 shrink-0" />
-              ) : (
-                <Lightbulb className="h-4 w-4 text-yellow-500 shrink-0" />
+              {hasCategory && (
+                <Badge
+                  variant="default"
+                  className="capitalize shrink-0 text-xs"
+                >
+                  {feedback.category}
+                </Badge>
               )}
               <CardTitle className="text-sm font-medium truncate">
                 {feedback.title}

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,6 +40,7 @@ import {
   Lightbulb,
   PlusIcon,
   MessageSquareIcon,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,7 +50,7 @@ const formSchema = z.object({
     .string()
     .min(1, "Description is required")
     .max(5000, "Description is too long"),
-  category: z.enum(["bug", "feature"]),
+  category: z.string().optional(),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
 });
 
@@ -71,41 +72,81 @@ export function FeedbackCreateDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const createFeedback = useMutation(api.feedback.create);
 
+  // Get available categories
+  const categories =
+    useQuery(api.feedbackSettings.getCategories, { organizationId }) ?? [];
+
+  // Determine if we should show the dropdown
+  const showCategoryDropdown = categories.length > 0;
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
       description: "",
-      category: "feature",
+      category: undefined,
       email: "",
     },
   });
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        title: "",
+        description: "",
+        category: undefined,
+        email: "",
+      });
+    }
+  }, [open, form]);
 
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
     try {
       if (isAuthenticated) {
-        await createFeedback({
+        const mutationArgs: {
+          title: string;
+          description: string;
+          origin?: string;
+          category?: string;
+        } = {
           title: values.title,
           description: values.description,
-          category: values.category,
           origin: "web",
-        });
+        };
+
+        if (values.category) {
+          mutationArgs.category = values.category;
+        }
+
+        await createFeedback(mutationArgs);
         toast.success("Feedback submitted successfully");
         onOpenChange(false);
         form.reset();
       } else {
         // Use API for unauthenticated users
+        const requestBody: {
+          title: string;
+          description: string;
+          email: string;
+          organizationId: string;
+          category?: string;
+        } = {
+          title: values.title,
+          description: values.description,
+          email: values.email || "",
+          organizationId,
+        };
+
+        if (values.category) {
+          requestBody.category = values.category;
+        }
+
         const response = await fetch("/api/feedback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: values.title,
-            description: values.description,
-            category: values.category,
-            email: values.email,
-            organizationId,
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
@@ -138,46 +179,43 @@ export function FeedbackCreateDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Submit Feedback</DialogTitle>
-          <DialogDescription>
-            Share your bug report or feature request with us.
-          </DialogDescription>
+          <DialogDescription>Share your feedback with us.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Category</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="feature">
-                        <div className="flex items-center gap-2">
-                          <Lightbulb className="h-4 w-4 text-yellow-500" />
-                          Feature Request
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="bug">
-                        <div className="flex items-center gap-2">
-                          <Bug className="h-4 w-4 text-red-500" />
-                          Bug Report
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {showCategoryDropdown && (
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem
+                            className="capitalize"
+                            key={category}
+                            value={category}
+                          >
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="title"

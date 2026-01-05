@@ -6,6 +6,7 @@ import {
   usePreloadedQuery,
   usePaginatedQuery,
   useMutation,
+  useQuery,
   type Preloaded,
 } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -29,13 +30,12 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  Bug,
-  Lightbulb,
   CheckCircle,
   Archive,
   Copy,
   ArrowLeft,
   Inbox,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -84,6 +84,15 @@ export function FeedbackScreener({
   const markDuplicate = useMutation(api.feedback.markDuplicate);
 
   const feedbackItems = results ?? initialData.page;
+  
+  // Get organizationId from first feedback item (all should be same org)
+  const organizationId = feedbackItems.length > 0 ? feedbackItems[0].organizationId : null;
+  
+  // Get available categories
+  const categories = useQuery(
+    api.feedbackSettings.getCategories,
+    organizationId ? { organizationId } : "skip"
+  ) ?? [];
 
   const handleScreenIn = async (feedbackId: Id<"feedback">) => {
     setIsProcessing(feedbackId);
@@ -165,15 +174,9 @@ export function FeedbackScreener({
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-2">
-                    {feedback.category === "bug" ? (
-                      <Badge variant="destructive">
-                        <Bug className="h-3 w-3 mr-1" />
-                        Bug
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">
-                        <Lightbulb className="h-3 w-3 mr-1" />
-                        Feature
+                    {feedback.category && categories.includes(feedback.category) && (
+                      <Badge variant="default" className="capitalize">
+                        {feedback.category}
                       </Badge>
                     )}
                     <span className="text-xs text-muted-foreground">

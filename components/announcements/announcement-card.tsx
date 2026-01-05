@@ -79,9 +79,7 @@ export function AnnouncementCard({
       toast.success("Announcement deleted");
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete announcement"
+        error instanceof Error ? error.message : "Failed to delete announcement"
       );
     }
   };
@@ -98,7 +96,9 @@ export function AnnouncementCard({
             <h2 className="text-xl font-semibold">{announcement.title}</h2>
             {isAuthenticated && (
               <Badge
-                variant={announcement.status === "published" ? "default" : "secondary"}
+                variant={
+                  announcement.status === "published" ? "default" : "secondary"
+                }
               >
                 {announcement.status === "published" ? "Published" : "Draft"}
               </Badge>
@@ -185,4 +185,3 @@ export function AnnouncementCard({
     </Card>
   );
 }
-

@@ -56,7 +56,7 @@ export default defineSchema({
   feedback: defineTable({
     title: v.string(),
     description: v.string(),
-    category: v.union(v.literal("bug"), v.literal("feature")),
+    category: v.optional(v.string()),
     status: v.union(
       v.literal("pending_screening"),
       v.literal("screened_in"),
@@ -95,6 +95,7 @@ export default defineSchema({
   feedbackSettings: defineTable({
     organizationId: v.string(),
     visibility: v.union(v.literal("public"), v.literal("private")),
+    categories: v.optional(v.array(v.string())),
     updatedAt: v.number(),
   }).index("by_organizationId", ["organizationId"]),
 

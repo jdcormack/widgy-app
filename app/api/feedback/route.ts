@@ -10,7 +10,7 @@ const feedbackSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(5000),
   email: z.string().email(),
-  category: z.enum(["bug", "feature"]),
+  category: z.string().max(50).optional(),
   organizationId: z.string().min(1),
   website: z.string().optional(), // Honeypot field - should be empty
 });
@@ -64,14 +64,26 @@ export async function POST(request: Request) {
     }
 
     // Create the feedback in Convex
-    const feedbackId = await fetchMutation(api.feedback.createFromApi, {
+    const mutationArgs: {
+      title: string;
+      description: string;
+      email: string;
+      organizationId: string;
+      origin?: string;
+      category?: string;
+    } = {
       title,
       description,
-      category,
       email,
       organizationId,
       origin: "api",
-    });
+    };
+
+    if (category) {
+      mutationArgs.category = category;
+    }
+
+    const feedbackId = await fetchMutation(api.feedback.createFromApi, mutationArgs);
 
     return NextResponse.json({ success: true, feedbackId }, { status: 201 });
   } catch (error) {

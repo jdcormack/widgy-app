@@ -13,7 +13,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Bug, Lightbulb, Search, Check } from "lucide-react";
+import { Search, Check, Tag } from "lucide-react";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 interface DuplicateSearchProps {
@@ -31,6 +31,15 @@ export function DuplicateSearch({ onSelect, excludeId }: DuplicateSearchProps) {
   );
 
   const filteredResults = results?.filter((f) => f._id !== excludeId) ?? [];
+  
+  // Get organizationId from first result (all should be same org)
+  const organizationId = filteredResults.length > 0 ? filteredResults[0].organizationId : null;
+  
+  // Get available categories
+  const categories = useQuery(
+    api.feedbackSettings.getCategories,
+    organizationId ? { organizationId } : "skip"
+  ) ?? [];
 
   return (
     <div className="space-y-4">
@@ -60,10 +69,10 @@ export function DuplicateSearch({ onSelect, excludeId }: DuplicateSearchProps) {
             >
               <CardContent className="flex items-center justify-between gap-4 py-3">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  {feedback.category === "bug" ? (
-                    <Bug className="h-4 w-4 text-red-500 shrink-0" />
-                  ) : (
-                    <Lightbulb className="h-4 w-4 text-yellow-500 shrink-0" />
+                  {feedback.category && categories.includes(feedback.category) && (
+                    <Badge variant="default" className="capitalize shrink-0 text-xs">
+                      {feedback.category}
+                    </Badge>
                   )}
                   <div className="min-w-0">
                     <CardTitle className="text-sm truncate">

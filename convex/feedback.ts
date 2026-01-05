@@ -21,7 +21,7 @@ const feedbackValidator = v.object({
   _creationTime: v.number(),
   title: v.string(),
   description: v.string(),
-  category: v.union(v.literal("bug"), v.literal("feature")),
+  category: v.optional(v.string()),
   status: feedbackStatusValidator,
   userId: v.optional(v.string()),
   onBehalfOfEmail: v.optional(v.string()),
@@ -37,7 +37,7 @@ const feedbackWithVoteCountValidator = v.object({
   _creationTime: v.number(),
   title: v.string(),
   description: v.string(),
-  category: v.union(v.literal("bug"), v.literal("feature")),
+  category: v.optional(v.string()),
   status: feedbackStatusValidator,
   userId: v.optional(v.string()),
   onBehalfOfEmail: v.optional(v.string()),
@@ -159,7 +159,7 @@ export const create = mutation({
   args: {
     title: v.string(),
     description: v.string(),
-    category: v.union(v.literal("bug"), v.literal("feature")),
+    category: v.optional(v.string()),
     origin: v.optional(v.string()),
   },
   returns: v.id("feedback"),
@@ -170,16 +170,30 @@ export const create = mutation({
       throw new Error("Unauthorized: Must be logged in to create feedback");
     }
 
-    return await ctx.db.insert("feedback", {
+    const feedbackData: {
+      title: string;
+      description: string;
+      status: "pending_screening";
+      userId: string;
+      organizationId: string;
+      origin: string;
+      updatedAt: number;
+      category?: string;
+    } = {
       title: args.title,
       description: args.description,
-      category: args.category,
       status: "pending_screening",
       userId: identity.subject,
       organizationId: identity.org_id as string,
       origin: args.origin ?? "web",
       updatedAt: Date.now(),
-    });
+    };
+
+    if (args.category) {
+      feedbackData.category = args.category;
+    }
+
+    return await ctx.db.insert("feedback", feedbackData);
   },
 });
 
@@ -192,23 +206,37 @@ export const createFromApi = mutation({
   args: {
     title: v.string(),
     description: v.string(),
-    category: v.union(v.literal("bug"), v.literal("feature")),
+    category: v.optional(v.string()),
     email: v.string(),
     organizationId: v.string(),
     origin: v.optional(v.string()),
   },
   returns: v.id("feedback"),
   handler: async (ctx, args) => {
-    return await ctx.db.insert("feedback", {
+    const feedbackData: {
+      title: string;
+      description: string;
+      status: "pending_screening";
+      onBehalfOfEmail: string;
+      organizationId: string;
+      origin: string;
+      updatedAt: number;
+      category?: string;
+    } = {
       title: args.title,
       description: args.description,
-      category: args.category,
       status: "pending_screening",
       onBehalfOfEmail: args.email,
       organizationId: args.organizationId,
       origin: args.origin ?? "api",
       updatedAt: Date.now(),
-    });
+    };
+
+    if (args.category) {
+      feedbackData.category = args.category;
+    }
+
+    return await ctx.db.insert("feedback", feedbackData);
   },
 });
 
@@ -220,7 +248,7 @@ export const update = mutation({
     feedbackId: v.id("feedback"),
     title: v.string(),
     description: v.string(),
-    category: v.union(v.literal("bug"), v.literal("feature")),
+    category: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -241,12 +269,22 @@ export const update = mutation({
       );
     }
 
-    await ctx.db.patch(args.feedbackId, {
+    const updateData: {
+      title: string;
+      description: string;
+      updatedAt: number;
+      category?: string;
+    } = {
       title: args.title,
       description: args.description,
-      category: args.category,
       updatedAt: Date.now(),
-    });
+    };
+
+    if (args.category !== undefined) {
+      updateData.category = args.category;
+    }
+
+    await ctx.db.patch(args.feedbackId, updateData);
 
     return null;
   },
@@ -1287,7 +1325,7 @@ export const getFeedbackByCardId = query({
       _creationTime: number;
       title: string;
       description: string;
-      category: "bug" | "feature";
+      category?: string;
       status:
         | "pending_screening"
         | "screened_in"

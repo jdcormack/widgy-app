@@ -506,9 +506,13 @@ export const updateStatus = mutation({
 
       // Recompute status for each linked feedback
       for (const link of links) {
-        await ctx.scheduler.runAfter(0, internal.feedback.recomputeFeedbackStatus, {
-          feedbackId: link.feedbackId,
-        });
+        await ctx.scheduler.runAfter(
+          0,
+          internal.feedback.recomputeFeedbackStatus,
+          {
+            feedbackId: link.feedbackId,
+          }
+        );
       }
     }
 

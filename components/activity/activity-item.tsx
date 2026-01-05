@@ -119,7 +119,14 @@ function formatStatus(status: string | undefined): string {
 }
 
 export function ActivityItem({ event, subdomain }: ActivityItemProps) {
-  const { eventType, metadata, cardId, boardId, announcementId, _creationTime } = event;
+  const {
+    eventType,
+    metadata,
+    cardId,
+    boardId,
+    announcementId,
+    _creationTime,
+  } = event;
 
   const timeAgo = formatDistanceToNow(new Date(_creationTime), {
     addSuffix: true,

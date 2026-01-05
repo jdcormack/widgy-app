@@ -2,6 +2,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
+import { nanoid } from "nanoid";
 
 // Custom column validator for return types
 const customColumnValidator = v.object({
@@ -1703,5 +1704,250 @@ export const deleteByNamePrefix = internalMutation({
     }
 
     return boardsToDelete.length;
+  },
+});
+
+/**
+ * Add a custom column to a board.
+ * Custom columns appear between "Next Up" and "Done".
+ * Maximum 10 custom columns allowed.
+ * Only owners or editors can add columns.
+ */
+export const addColumn = mutation({
+  args: {
+    boardId: v.id("boards"),
+    name: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in");
+    }
+
+    const board = await ctx.db.get(args.boardId);
+    if (!board || board.organizationId !== identity.org_id) {
+      throw new Error("Board not found or access denied");
+    }
+
+    // Check if user is owner or editor
+    await requireOwnerOrEditor(
+      ctx,
+      args.boardId,
+      identity.subject,
+      "Unauthorized: Only owners or editors can add columns"
+    );
+
+    const existingColumns = board.customColumns ?? [];
+
+    // Validate max 10 custom columns
+    if (existingColumns.length >= 10) {
+      throw new Error("Maximum 10 custom columns allowed");
+    }
+
+    // Generate unique ID and calculate position
+    const newColumn = {
+      id: nanoid(),
+      name: args.name.trim() || "Custom",
+      position: existingColumns.length + 2, // After next_up (1), before done (999)
+    };
+
+    await ctx.db.patch(args.boardId, {
+      customColumns: [...existingColumns, newColumn],
+      updatedAt: Date.now(),
+    });
+
+    return null;
+  },
+});
+
+/**
+ * Remove a custom column from a board.
+ * Cannot remove columns that have cards assigned to them.
+ * Only owners or editors can remove columns.
+ */
+export const removeColumn = mutation({
+  args: {
+    boardId: v.id("boards"),
+    columnId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in");
+    }
+
+    const board = await ctx.db.get(args.boardId);
+    if (!board || board.organizationId !== identity.org_id) {
+      throw new Error("Board not found or access denied");
+    }
+
+    // Check if user is owner or editor
+    await requireOwnerOrEditor(
+      ctx,
+      args.boardId,
+      identity.subject,
+      "Unauthorized: Only owners or editors can remove columns"
+    );
+
+    const existingColumns = board.customColumns ?? [];
+    const columnToRemove = existingColumns.find(
+      (col) => col.id === args.columnId
+    );
+
+    if (!columnToRemove) {
+      throw new Error("Column not found");
+    }
+
+    // Check if column has cards using the index
+    const cardsInColumn = await ctx.db
+      .query("cards")
+      .withIndex("by_boardId_and_status", (q) =>
+        q.eq("boardId", args.boardId).eq("status", args.columnId)
+      )
+      .first();
+
+    if (cardsInColumn) {
+      throw new Error(
+        "Cannot remove column with cards. Move or delete the cards first."
+      );
+    }
+
+    // Remove the column and reorder positions
+    const updatedColumns = existingColumns
+      .filter((col) => col.id !== args.columnId)
+      .map((col, idx) => ({
+        ...col,
+        position: idx + 2, // Recalculate positions
+      }));
+
+    await ctx.db.patch(args.boardId, {
+      customColumns: updatedColumns,
+      updatedAt: Date.now(),
+    });
+
+    return null;
+  },
+});
+
+/**
+ * Update custom columns (names and order).
+ * Only owners or editors can update columns.
+ * Maximum 10 custom columns allowed.
+ */
+export const updateColumns = mutation({
+  args: {
+    boardId: v.id("boards"),
+    columns: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        position: v.number(),
+      })
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.org_id) {
+      throw new Error("Unauthorized: Must be logged in");
+    }
+
+    const board = await ctx.db.get(args.boardId);
+    if (!board || board.organizationId !== identity.org_id) {
+      throw new Error("Board not found or access denied");
+    }
+
+    // Check if user is owner or editor
+    await requireOwnerOrEditor(
+      ctx,
+      args.boardId,
+      identity.subject,
+      "Unauthorized: Only owners or editors can update columns"
+    );
+
+    // Validate max 10 custom columns
+    if (args.columns.length > 10) {
+      throw new Error("Maximum 10 custom columns allowed");
+    }
+
+    // Ensure all column IDs exist (prevent adding new columns via this endpoint)
+    const existingColumns = board.customColumns ?? [];
+    const existingIds = new Set(existingColumns.map((col) => col.id));
+
+    for (const col of args.columns) {
+      if (!existingIds.has(col.id)) {
+        throw new Error(`Column with id ${col.id} does not exist`);
+      }
+    }
+
+    // Sort columns by position and normalize positions
+    const sortedColumns = [...args.columns]
+      .sort((a, b) => a.position - b.position)
+      .map((col, idx) => ({
+        id: col.id,
+        name: col.name.trim() || "Custom",
+        position: idx + 2, // After next_up (1), before done (999)
+      }));
+
+    await ctx.db.patch(args.boardId, {
+      customColumns: sortedColumns,
+      updatedAt: Date.now(),
+    });
+
+    return null;
+  },
+});
+
+/**
+ * Get card counts for each column on a board.
+ * Returns a record mapping column IDs to their card counts.
+ */
+export const getColumnCardCounts = query({
+  args: {
+    boardId: v.id("boards"),
+  },
+  returns: v.record(v.string(), v.number()),
+  handler: async (ctx, args) => {
+    const board = await ctx.db.get(args.boardId);
+    if (!board) {
+      return {};
+    }
+
+    const identity = await ctx.auth.getUserIdentity();
+
+    // Check access for private/restricted boards
+    if (board.visibility === "private") {
+      if (!identity || identity.org_id !== board.organizationId) {
+        return {};
+      }
+    }
+
+    if (board.visibility === "restricted") {
+      if (!identity || identity.org_id !== board.organizationId) {
+        return {};
+      }
+      const isViewer = await isUserViewer(ctx, args.boardId, identity.subject);
+      if (!isViewer) {
+        return {};
+      }
+    }
+
+    const customColumns = board.customColumns ?? [];
+    const counts: Record<string, number> = {};
+
+    // Count cards for each custom column using the index
+    for (const column of customColumns) {
+      const cards = await ctx.db
+        .query("cards")
+        .withIndex("by_boardId_and_status", (q) =>
+          q.eq("boardId", args.boardId).eq("status", column.id)
+        )
+        .collect();
+      counts[column.id] = cards.length;
+    }
+
+    return counts;
   },
 });

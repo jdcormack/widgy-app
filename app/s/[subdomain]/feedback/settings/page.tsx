@@ -4,7 +4,6 @@ import { api } from "@/convex/_generated/api";
 import { getSubdomainData } from "@/lib/subdomains";
 import { requireOrgAuth } from "@/lib/auth";
 import { FeedbackSettingsForm } from "@/components/feedback";
-import { FeedbackCategoriesForm } from "@/components/feedback/feedback-categories-form";
 
 export default async function FeedbackSettingsPage({
   params,
@@ -26,15 +25,9 @@ export default async function FeedbackSettingsPage({
     {}
   );
 
-  const preloadedCategories = await preloadQuery(
-    api.feedbackSettings.getCategoriesForOrg,
-    {}
-  );
-
   return (
     <div className="w-full max-w-xl mx-auto space-y-8">
       <FeedbackSettingsForm preloadedSettings={preloadedSettings} />
-      <FeedbackCategoriesForm preloadedCategories={preloadedCategories} />
     </div>
   );
 }

@@ -4,6 +4,19 @@ import { useDroppable } from "@dnd-kit/core";
 import { KanbanCard, type KanbanCardData } from "./kanban-card";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  MoreVertical,
+  Trash2,
+  ArrowLeftFromLine,
+  ArrowRightToLine,
+} from "lucide-react";
 import { type OrganizationMember } from "@/app/actions";
 
 export interface ColumnDefinition {
@@ -20,6 +33,14 @@ interface KanbanColumnProps {
   isAuthenticated?: boolean;
   highlightedCardId?: string | null;
   draggingFromColumn?: string | null;
+  // Custom column actions
+  isCustomColumn?: boolean;
+  canMoveLeft?: boolean;
+  canMoveRight?: boolean;
+  onMoveLeft?: () => void;
+  onMoveRight?: () => void;
+  onDelete?: () => void;
+  isDeleting?: boolean;
 }
 
 export function KanbanColumn({
@@ -30,6 +51,13 @@ export function KanbanColumn({
   isAuthenticated = false,
   highlightedCardId,
   draggingFromColumn,
+  isCustomColumn = false,
+  canMoveLeft = false,
+  canMoveRight = false,
+  onMoveLeft,
+  onMoveRight,
+  onDelete,
+  isDeleting = false,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -75,6 +103,37 @@ export function KanbanColumn({
         <Badge variant="secondary" className="text-xs">
           {cards.length}
         </Badge>
+        {isCustomColumn && isAuthenticated && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 ml-auto text-muted-foreground hover:text-foreground"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onMoveLeft} disabled={!canMoveLeft}>
+                <ArrowLeftFromLine className="h-4 w-4 mr-2" />
+                Move Left
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onMoveRight} disabled={!canMoveRight}>
+                <ArrowRightToLine className="h-4 w-4 mr-2" />
+                Move Right
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={onDelete}
+                disabled={cards.length > 0 || isDeleting}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {cards.length > 0 ? `Delete (${cards.length} cards)` : "Delete"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       <div

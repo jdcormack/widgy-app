@@ -1,9 +1,10 @@
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@clerk/nextjs/server";
+import { notFound } from "next/navigation";
 import { preloadQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { getSubdomainData } from "@/lib/subdomains";
+import { requireOrgAuth } from "@/lib/auth";
 import { FeedbackSettingsForm } from "@/components/feedback";
+import { FeedbackCategoriesForm } from "@/components/feedback/feedback-categories-form";
 
 export default async function FeedbackSettingsPage({
   params,
@@ -18,21 +19,22 @@ export default async function FeedbackSettingsPage({
   }
 
   // Require authentication for settings page
-  const { userId, orgId } = await auth();
-  const isAuthenticated = !!userId && orgId === subdomainData.organizationId;
-
-  if (!isAuthenticated) {
-    redirect(`/s/${subdomain}/feedback`);
-  }
+  await requireOrgAuth(subdomainData.organizationId);
 
   const preloadedSettings = await preloadQuery(
     api.feedbackSettings.getForOrg,
     {}
   );
 
+  const preloadedCategories = await preloadQuery(
+    api.feedbackSettings.getCategoriesForOrg,
+    {}
+  );
+
   return (
-    <div className="w-full max-w-xl mx-auto">
+    <div className="w-full max-w-xl mx-auto space-y-8">
       <FeedbackSettingsForm preloadedSettings={preloadedSettings} />
+      <FeedbackCategoriesForm preloadedCategories={preloadedCategories} />
     </div>
   );
 }

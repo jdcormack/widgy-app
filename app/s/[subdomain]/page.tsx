@@ -23,6 +23,17 @@ export async function generateMetadata({
   };
 }
 
-export default async function SubdomainPage() {
-  return <SubdomainHomeClient />;
+export default async function SubdomainPage({
+  params,
+}: {
+  params: Promise<{ subdomain: string }>;
+}) {
+  const { subdomain } = await params;
+  const subdomainData = await getSubdomainData(subdomain);
+
+  if (!subdomainData) {
+    return null;
+  }
+
+  return <SubdomainHomeClient organizationId={subdomainData.organizationId} />;
 }

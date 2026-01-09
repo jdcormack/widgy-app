@@ -56,7 +56,6 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 interface CreateBoardDialogProps {
-  children?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   members?: OrganizationMember[];
@@ -64,7 +63,6 @@ interface CreateBoardDialogProps {
 }
 
 export function CreateBoardDialog({
-  children,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
   members = [],
@@ -132,13 +130,6 @@ export function CreateBoardDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          Create Board
-          <Kbd className="ml-2 hidden sm:inline-flex">B</Kbd>
-          <PlusIcon className="h-4 w-4 sm:hidden" />
-        </Button>
-      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create a new board</DialogTitle>

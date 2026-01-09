@@ -4,6 +4,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { BackButton } from "@/components/back-button";
 import { AlertTriangleIcon } from "lucide-react";
 
+import { Footer } from "@/components/footer";
+
 export default function NotFound() {
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -45,32 +47,7 @@ export default function NotFound() {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="py-4 px-6">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Logo variant="light" />
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-gray-500 text-sm">
-            <Link
-              href="https://widgy.co"
-              className="hover:text-gray-700 transition-colors"
-            >
-              Home
-            </Link>
-            <Link
-              href="https://widgy.co/privacy"
-              className="hover:text-gray-700 transition-colors"
-            >
-              Privacy
-            </Link>
-            <Link
-              href="https://widgy.co/terms"
-              className="hover:text-gray-700 transition-colors"
-            >
-              Terms
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

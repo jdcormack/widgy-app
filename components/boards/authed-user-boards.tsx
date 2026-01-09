@@ -11,6 +11,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import {
   Globe,
   Lock,
@@ -50,14 +51,35 @@ function formatRelativeTime(timestamp: number): string {
   return "Just now";
 }
 
-function VisibilityIcon({ visibility }: { visibility: string }) {
+function VisibilityBadge({ visibility }: { visibility: string }) {
   switch (visibility) {
     case "public":
-      return <Globe className="h-4 w-4 text-muted-foreground" />;
+      return (
+        <Badge
+          variant="outline"
+          className="bg-green-500/10 text-green-700 border-green-500/20 dark:bg-green-500/20 dark:text-green-400"
+        >
+          <Globe className="h-3 w-3" />
+          Public
+        </Badge>
+      );
     case "restricted":
-      return <Users className="h-4 w-4 text-muted-foreground" />;
+      return (
+        <Badge
+          variant="outline"
+          className="bg-orange-500/10 text-orange-700 border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400"
+        >
+          <Users className="h-3 w-3" />
+          Restricted
+        </Badge>
+      );
     default:
-      return <Lock className="h-4 w-4 text-muted-foreground" />;
+      return (
+        <Badge variant="secondary">
+          <Lock className="h-3 w-3" />
+          Private
+        </Badge>
+      );
   }
 }
 
@@ -151,10 +173,10 @@ export function AuthedUserBoards({ organizationId }: AuthedUserBoardsProps) {
               <CardContent className="flex items-center justify-between">
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
-                    <VisibilityIcon visibility={board.visibility} />
                     <CardTitle className="text-lg leading-4">
                       {board.name}
                     </CardTitle>
+                    <VisibilityBadge visibility={board.visibility} />
                   </div>
                   <CardDescription className="text-xs">
                     Updated {formatRelativeTime(board.updatedAt)}

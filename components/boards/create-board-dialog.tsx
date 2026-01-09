@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { GlobeIcon, LockIcon, UsersIcon } from "lucide-react";
 import { Spinner } from "../ui/spinner";
 import { Kbd } from "../ui/kbd";
@@ -175,27 +176,30 @@ export function CreateBoardDialog({
                   </Select>
 
                   <FormDescription>
-                    <div className="bg-blue-500 text-white rounded-lg p-2 flex items-center gap-2">
-                      {field.value === "public" && (
-                        <>
-                          <GlobeIcon className="size-4" /> Anyone can view this
-                          board
-                        </>
-                      )}
-                      {field.value === "private" && (
-                        <>
-                          <LockIcon className="size-4" />
-                          Only people within your organization can view this
-                          board
-                        </>
-                      )}
-                      {field.value === "restricted" && (
-                        <>
-                          <UsersIcon className="size-4" /> Only selected users
-                          can view this board
-                        </>
-                      )}
-                    </div>
+                    {field.value === "public" && (
+                      <Badge
+                        variant="outline"
+                        className="bg-green-500/10 text-green-700 border-green-500/20 dark:bg-green-500/20 dark:text-green-400"
+                      >
+                        <GlobeIcon className="size-3" /> Anyone can view this
+                        board
+                      </Badge>
+                    )}
+                    {field.value === "private" && (
+                      <Badge variant="secondary">
+                        <LockIcon className="size-3" />
+                        Only people within your organization can view this board
+                      </Badge>
+                    )}
+                    {field.value === "restricted" && (
+                      <Badge
+                        variant="outline"
+                        className="bg-orange-500/10 text-orange-700 border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400"
+                      >
+                        <UsersIcon className="size-3" /> Only selected users can
+                        view this board
+                      </Badge>
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

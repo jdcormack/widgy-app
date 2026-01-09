@@ -674,6 +674,51 @@ export const listByOrganization = query({
 });
 
 /**
+ * List public boards for an organization.
+ * Returns only boards with visibility "public".
+ * Does not require authentication - works for unauthenticated users.
+ */
+export const listPublicBoards = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("boards"),
+      _creationTime: v.number(),
+      name: v.string(),
+      organizationId: v.string(),
+      visibility: v.union(
+        v.literal("public"),
+        v.literal("private"),
+        v.literal("restricted")
+      ),
+      createdBy: v.string(),
+      updatedAt: v.number(),
+      customColumns: v.optional(v.array(customColumnValidator)),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const publicBoards = await ctx.db
+      .query("boards")
+      .withIndex("by_organizationId_and_visibility", (q) =>
+        q.eq("organizationId", args.organizationId).eq("visibility", "public")
+      )
+      .collect();
+
+    // Sort by creation time descending (newest first) for stable ordering
+    const sortedBoards = publicBoards
+      .map((board) => ({
+        ...board,
+        updatedAt: board.updatedAt ?? board._creationTime,
+      }))
+      .sort((a, b) => b._creationTime - a._creationTime);
+
+    return sortedBoards;
+  },
+});
+
+/**
  * Get a single board by ID.
  * Public boards can be viewed by anyone.
  * Private boards require authentication and org membership.

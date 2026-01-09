@@ -1,7 +1,7 @@
 "use client";
 
 import { Spinner } from "@/components/ui/spinner";
-import { AuthedUserBoards } from "@/components/boards";
+import { AuthedUserBoards, PublicBoards } from "@/components/boards";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 
 interface SubdomainHomeClientProps {
@@ -14,7 +14,7 @@ export function SubdomainHomeClient({
   return (
     <>
       <Unauthenticated>
-        <p>see nothing</p>
+        <PublicBoards organizationId={organizationId} />
       </Unauthenticated>
       <Authenticated>
         <AuthedUserBoards organizationId={organizationId} />

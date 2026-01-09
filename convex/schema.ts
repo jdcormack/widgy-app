@@ -20,7 +20,9 @@ export default defineSchema({
     createdBy: v.string(),
     updatedAt: v.number(),
     customColumns: v.optional(v.array(customColumnValidator)),
-  }).index("by_organizationId", ["organizationId"]),
+  })
+    .index("by_organizationId", ["organizationId"])
+    .index("by_organizationId_and_visibility", ["organizationId", "visibility"]),
 
   cards: defineTable({
     title: v.string(),

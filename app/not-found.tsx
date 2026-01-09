@@ -33,15 +33,6 @@ export default function NotFound() {
                 You can go back, or try looking on our Help Center if you need a
                 hand.
               </p>
-              <div className="flex flex-col gap-3">
-                <BackButton className="w-full" />
-                <Link
-                  href="/"
-                  className={buttonVariants({ className: "w-full group" })}
-                >
-                  Home
-                </Link>
-              </div>
             </div>
           </div>
         </div>

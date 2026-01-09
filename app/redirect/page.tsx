@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { protocol, rootDomain } from "@/lib/utils";
-import { getOrganizationById } from "@/lib/organizations";
+import { syncOrganizationToRedis } from "../actions";
 
 export default async function RedirectPage() {
   const { userId, orgId } = await auth();
@@ -16,14 +16,6 @@ export default async function RedirectPage() {
     redirect("/create-organization");
   }
 
-  // Check if org exists in Redis
-  const orgData = await getOrganizationById(orgId);
-
-  if (!orgData) {
-    // Org exists in Clerk but not in Redis - sync it
-    redirect("/org-setup-complete");
-  }
-
-  // Organization is fully set up - redirect to subdomain
-  redirect(`${protocol}://${orgData.slug}.${rootDomain}`);
+  const result = await syncOrganizationToRedis();
+  redirect(`${protocol}://${result.slug}.${rootDomain}`);
 }

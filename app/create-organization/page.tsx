@@ -28,7 +28,7 @@ export default async function CreateOrganizationPage() {
           href="/"
           className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
         >
-          ← Back to Home
+          Back to Home
         </Link>
       </div>
 

@@ -17,7 +17,6 @@ export default async function FeedbackSettingsPage({
     notFound();
   }
 
-  // Require authentication for settings page
   await requireOrgAuth(subdomainData.organizationId);
 
   const preloadedSettings = await preloadQuery(

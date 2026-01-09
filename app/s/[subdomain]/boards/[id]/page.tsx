@@ -3,8 +3,6 @@ import { auth } from "@clerk/nextjs/server";
 import type { Id } from "@/convex/_generated/dataModel";
 import { getSubdomainData } from "@/lib/subdomains";
 import { BoardKanban } from "@/components/boards";
-import { PageHeader } from "@/components/page-header";
-import { PageContainer } from "@/components/page-container";
 import { getOrganizationMembers } from "@/app/actions";
 
 export default async function BoardDetailPage({

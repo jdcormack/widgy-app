@@ -1,4 +1,3 @@
-import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { getSubdomainData } from "@/lib/subdomains";
 import { notFound } from "next/navigation";
@@ -18,9 +17,11 @@ export default async function DashboardLayout({
   }
 
   return (
-    <>
+    <div className="flex flex-col min-h-screen">
       <PageHeader />
-      <PageContainer>{children}</PageContainer>
-    </>
+      <div className="flex grow flex-col rounded-lg px-5 py-5 mx-2 mt-5 md:m-5 outline-1 shadow-xl outline-slate-200">
+        {children}
+      </div>
+    </div>
   );
 }

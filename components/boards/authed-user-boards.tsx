@@ -11,7 +11,15 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Globe, Lock, Users, LayoutGrid, ChevronRightIcon } from "lucide-react";
+import {
+  Globe,
+  Lock,
+  Users,
+  LayoutGrid,
+  ChevronRightIcon,
+  CornerDownLeft,
+  PlusIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
@@ -55,7 +63,7 @@ function VisibilityIcon({ visibility }: { visibility: string }) {
 
 export function AuthedUserBoards({ organizationId }: AuthedUserBoardsProps) {
   const router = useRouter();
-  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+  const { isLoading } = useConvexAuth();
   const boards = useQuery(api.boards.listByOrganization, { organizationId });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -89,48 +97,22 @@ export function AuthedUserBoards({ organizationId }: AuthedUserBoardsProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Show loading state while auth is being determined or boards are loading
-  if (isAuthLoading || boards === undefined) {
-    return (
-      <div className="space-y-6 w-full">
-        <h1 className="text-2xl font-bold">Boards</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="flex items-center justify-between">
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-4 w-4 rounded" />
-                    <Skeleton className="h-5 w-32" />
-                  </div>
-                  <Skeleton className="h-3 w-24" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
+  if (isLoading || boards === undefined) {
+    return <div className="space-y-6 w-full"></div>;
   }
-
-  const emptyStateMessage = isAuthenticated
-    ? "No boards yet. Create your first board to get started."
-    : "No public boards available.";
 
   return (
     <div className="space-y-6 w-full">
-      <header>
+      <header className="flex gap-2 items-center">
         <div className="flex items-center gap-2">
           <LayoutGrid className="size-4 text-muted-foreground" />
-          <h2 className="text-lg font-bold">Boards</h2>
+          <h2 className="text-lg font-bold leading-4">Boards</h2>
         </div>
+
         {boards.length > 0 && (
-          <Button
-            size="sm"
-            className="mt-4"
-            onClick={() => setIsDialogOpen(true)}
-          >
-            Create Board <Kbd className="ml-2 hidden sm:inline-flex">b</Kbd>
+          <Button size="sm" onClick={() => setIsDialogOpen(true)}>
+            Create Board <Kbd className="ml-2 hidden sm:inline-flex">b</Kbd>{" "}
+            <PlusIcon className="size-4 ml-2 sm:hidden max-sm:inline-flex" />
           </Button>
         )}
       </header>
@@ -140,7 +122,7 @@ export function AuthedUserBoards({ organizationId }: AuthedUserBoardsProps) {
       {boards.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <LayoutGrid className="h-12 w-12 mx-auto mb-2 opacity-50" />
-          <p>{emptyStateMessage}</p>
+          <p>No boards yet. Create your first board to get started.</p>
           <Button
             size="sm"
             className="mt-4"
@@ -170,13 +152,20 @@ export function AuthedUserBoards({ organizationId }: AuthedUserBoardsProps) {
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
                     <VisibilityIcon visibility={board.visibility} />
-                    <CardTitle className="text-lg">{board.name}</CardTitle>
+                    <CardTitle className="text-lg leading-4">
+                      {board.name}
+                    </CardTitle>
                   </div>
                   <CardDescription className="text-xs">
                     Updated {formatRelativeTime(board.updatedAt)}
                   </CardDescription>
                 </div>
-                <ChevronRightIcon className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                <div className="flex items-center gap-2 size-5">
+                  <Kbd className="hidden sm:inline-flex opacity-0 group-focus-visible:opacity-100 transition-opacity">
+                    <CornerDownLeft className="h-3 w-3" />
+                  </Kbd>
+                </div>
               </CardContent>
             </Card>
           ))}

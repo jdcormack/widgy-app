@@ -14,7 +14,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -34,7 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, PlusIcon } from "lucide-react";
+import { GlobeIcon, LockIcon, UsersIcon } from "lucide-react";
 import { Spinner } from "../ui/spinner";
 import { Kbd } from "../ui/kbd";
 import { type OrganizationMember } from "@/app/actions";
@@ -174,12 +173,29 @@ export function CreateBoardDialog({
                       <SelectItem value="restricted">Restricted</SelectItem>
                     </SelectContent>
                   </Select>
+
                   <FormDescription>
-                    {field.value === "public" && "Anyone can view this board"}
-                    {field.value === "private" &&
-                      "All authenticated org members can view this board"}
-                    {field.value === "restricted" &&
-                      "Only selected viewers can view this board"}
+                    <div className="bg-blue-500 text-white rounded-lg p-2 flex items-center gap-2">
+                      {field.value === "public" && (
+                        <>
+                          <GlobeIcon className="size-4" /> Anyone can view this
+                          board
+                        </>
+                      )}
+                      {field.value === "private" && (
+                        <>
+                          <LockIcon className="size-4" />
+                          Only people within your organization can view this
+                          board
+                        </>
+                      )}
+                      {field.value === "restricted" && (
+                        <>
+                          <UsersIcon className="size-4" /> Only selected users
+                          can view this board
+                        </>
+                      )}
+                    </div>
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

@@ -14,7 +14,7 @@ export function SubdomainHomeClient({
   return (
     <>
       <Unauthenticated>
-        <AuthedUserBoards organizationId={organizationId} />
+        <p>see nothing</p>
       </Unauthenticated>
       <Authenticated>
         <AuthedUserBoards organizationId={organizationId} />

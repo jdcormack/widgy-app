@@ -1,56 +1,76 @@
-'use client';
-
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
-import { rootDomain, protocol } from '@/lib/utils';
+import Link from "next/link";
+import Logo from "@/components/logo";
+import { buttonVariants } from "@/components/ui/button";
+import { BackButton } from "@/components/back-button";
+import { AlertTriangleIcon } from "lucide-react";
 
 export default function NotFound() {
-  const [subdomain, setSubdomain] = useState<string | null>(null);
-  const pathname = usePathname();
-
-  useEffect(() => {
-    // Extract subdomain from URL if we're on a subdomain page
-    if (pathname?.startsWith('/subdomain/')) {
-      const extractedSubdomain = pathname.split('/')[2];
-      if (extractedSubdomain) {
-        setSubdomain(extractedSubdomain);
-      }
-    } else {
-      // Try to extract from hostname for direct subdomain access
-      const hostname = window.location.hostname;
-      if (hostname.includes(`.${rootDomain.split(':')[0]}`)) {
-        const extractedSubdomain = hostname.split('.')[0];
-        setSubdomain(extractedSubdomain);
-      }
-    }
-  }, [pathname]);
-
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-blue-50 to-white p-4">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-gray-900">
-          {subdomain ? (
-            <>
-              <span className="text-blue-600">{subdomain}</span>.{rootDomain}{' '}
-              doesn't exist
-            </>
-          ) : (
-            'Subdomain Not Found'
-          )}
-        </h1>
-        <p className="mt-3 text-lg text-gray-600">
-          This subdomain hasn't been created yet.
-        </p>
-        <div className="mt-6">
-          <Link
-            href={`${protocol}://${rootDomain}`}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            {subdomain ? `Create ${subdomain}` : `Go to ${rootDomain}`}
-          </Link>
+    <div className="flex flex-col min-h-screen bg-white">
+      <header className="flex items-center py-4 px-6">
+        <Link href="https://widgy.co">
+          <Logo />
+        </Link>
+      </header>
+
+      <div className="flex-1 relative flex items-center justify-center px-6 py-12">
+        <div className="absolute inset-0 bg-linear-to-br from-blue-200 via-purple-200 to-transparent blur-3xl opacity-60"></div>
+        <div className="relative z-10 w-full max-w-md space-y-8">
+          <div className="bg-white shadow-md rounded-lg p-6">
+            <div className="text-center space-y-4">
+              <div className="flex flex-col items-center gap-2">
+                <AlertTriangleIcon className="size-10 text-red-500" />
+                <h1 className="text-4xl font-bold text-gray-900 mb-4">
+                  There’s been a mistake…
+                </h1>
+                <p className="text-lg text-gray-600">
+                  We’re not quite sure what went wrong.
+                </p>
+              </div>
+              <p className="text-gray-600">
+                You can go back, or try looking on our Help Center if you need a
+                hand.
+              </p>
+              <div className="flex flex-col gap-3">
+                <BackButton className="w-full" />
+                <Link
+                  href="/"
+                  className={buttonVariants({ className: "w-full group" })}
+                >
+                  Home
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="py-4 px-6">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <Logo variant="light" />
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-gray-500 text-sm">
+            <Link
+              href="https://widgy.co"
+              className="hover:text-gray-700 transition-colors"
+            >
+              Home
+            </Link>
+            <Link
+              href="https://widgy.co/privacy"
+              className="hover:text-gray-700 transition-colors"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="https://widgy.co/terms"
+              className="hover:text-gray-700 transition-colors"
+            >
+              Terms
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

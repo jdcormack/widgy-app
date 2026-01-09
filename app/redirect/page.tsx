@@ -27,4 +27,3 @@ export default async function RedirectPage() {
   // Organization is fully set up - redirect to subdomain
   redirect(`${protocol}://${orgData.slug}.${rootDomain}`);
 }
-

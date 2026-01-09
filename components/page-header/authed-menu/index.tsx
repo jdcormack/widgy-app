@@ -37,7 +37,7 @@ export function AuthedMenu() {
 
       <AuthLoading>
         <div className="flex justify-between items-center gap-2 ml-10">
-          <Skeleton className="hidden sm:block h-9 w-48 rounded-md" />
+          <Skeleton className="sm:block h-8 w-48 md:w-24 rounded-md" />
           <Skeleton className="h-8 w-8 rounded-full ml-auto" />
         </div>
       </AuthLoading>

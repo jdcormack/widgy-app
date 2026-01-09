@@ -17,9 +17,9 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col h-screen">
       <PageHeader />
-      <div className="flex grow flex-col rounded-lg px-5 py-5 mx-2 mt-5 md:m-5 outline-1 shadow-xl outline-slate-200">
+      <div className="flex flex-1 flex-col rounded-lg px-5 py-5 mx-2 mt-5 md:m-5 border shadow-xl border-slate-200 overflow-auto">
         {children}
       </div>
     </div>

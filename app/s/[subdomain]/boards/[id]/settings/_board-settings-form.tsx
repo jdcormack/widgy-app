@@ -49,8 +49,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  GlobeIcon,
-  GlobeLock,
   Trash2,
   Crown,
   Edit,
@@ -78,6 +76,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { VisibilityBadge } from "@/components/boards/visibility-badge";
 
 const formSchema = z.object({
   name: z
@@ -378,23 +377,17 @@ export function BoardSettingsForm({
                       </SelectContent>
                     </Select>
                     <FormDescription className="flex items-center gap-2">
+                      <VisibilityBadge visibility={field.value} />
                       {field.value === "public" && (
-                        <>
-                          <GlobeIcon className="h-4 w-4 text-green-500" />{" "}
-                          Anyone can view this board
-                        </>
+                        <span>Anyone can view this board</span>
                       )}
                       {field.value === "private" && (
-                        <>
-                          <GlobeLock className="h-4 w-4" /> All authenticated
-                          org members can view this board
-                        </>
+                        <span>
+                          All authenticated org members can view this board
+                        </span>
                       )}
                       {field.value === "restricted" && (
-                        <>
-                          <GlobeLock className="h-4 w-4" /> Only selected
-                          members can view this board
-                        </>
+                        <span>Only selected members can view this board</span>
                       )}
                     </FormDescription>
                     <FormMessage />

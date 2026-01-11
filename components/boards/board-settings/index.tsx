@@ -9,6 +9,7 @@ import { EditBoardDetails } from "./edit-board-details";
 import { EditBoardMembers } from "./edit-board-members";
 import { EditBoardWatchers } from "./edit-board-watchers";
 import { DeleteBoard } from "./delete-board";
+import { Spinner } from "@/components/ui/spinner";
 
 interface BoardSettingsProps {
   preloadedBoard: Preloaded<typeof api.boards.getById>;
@@ -20,34 +21,8 @@ export function BoardSettings({ preloadedBoard, members }: BoardSettingsProps) {
 
   if (board === null) {
     return (
-      <div className="space-y-6">
-        <Card className="max-w-2xl mx-auto">
-          <CardHeader>
-            <Skeleton className="h-6 w-24" />
-            <Skeleton className="h-4 w-72 mt-2" />
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-            <div className="flex flex-row items-center justify-between rounded-lg border p-4">
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-48" />
-              </div>
-              <Skeleton className="h-6 w-11 rounded-full" />
-            </div>
-            <div className="flex gap-3">
-              <Skeleton className="h-10 w-20" />
-              <Skeleton className="h-10 w-28" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="max-w-2xl mx-auto">
-          <Skeleton className="h-10 w-32" />
-        </div>
+      <div className="flex flex-1 items-center justify-center py-12">
+        <Spinner />
       </div>
     );
   }

@@ -32,6 +32,8 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Spinnaker } from "next/font/google";
+import { Spinner } from "@/components/ui/spinner";
 
 interface EditBoardWatchersProps {
   boardId: Id<"boards">;
@@ -88,21 +90,7 @@ export function EditBoardWatchers({
     watchers === undefined ||
     isSubscribed === undefined
   ) {
-    return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-4 w-64 mt-2" />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-8 w-20" />
-          </div>
-          <Skeleton className="h-14 w-full" />
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   return (
@@ -172,23 +160,6 @@ export function EditBoardWatchers({
                 </PopoverContent>
               </Popover>
             )}
-            <Button
-              variant={isSubscribed ? "outline" : "default"}
-              size="sm"
-              onClick={handleToggleSubscription}
-            >
-              {isSubscribed ? (
-                <>
-                  <EyeOff className="h-4 w-4 mr-2" />
-                  Unwatch
-                </>
-              ) : (
-                <>
-                  <Eye className="h-4 w-4 mr-2" />
-                  Watch
-                </>
-              )}
-            </Button>
           </div>
         </div>
         {watchers.length > 0 ? (
@@ -221,7 +192,7 @@ export function EditBoardWatchers({
                       {isCurrentUser && <Badge variant="secondary">You</Badge>}
                     </div>
                   </div>
-                  {!isCurrentUser && canEdit && (
+                  {canEdit && (
                     <Button
                       variant="ghost"
                       size="icon"

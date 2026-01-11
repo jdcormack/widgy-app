@@ -39,6 +39,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Spinner } from "@/components/ui/spinner";
 
 interface EditBoardMembersProps {
   boardId: Id<"boards">;
@@ -203,7 +204,7 @@ export function EditBoardMembers({
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <Users className="h-5 w-5" />
-          Board Members
+          Members
         </CardTitle>
         <CardDescription>
           Manage board members and their roles. Owners can assign any role.

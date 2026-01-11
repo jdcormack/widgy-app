@@ -25,9 +25,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VisibilityBadge } from "@/components/boards/visibility-badge";
+import { NotebookIcon } from "lucide-react";
 
 const formSchema = z.object({
   name: z
@@ -85,22 +85,15 @@ export function EditBoardDetails({ boardId, board }: EditBoardDetailsProps) {
   };
 
   if (!canEdit) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-sm text-muted-foreground">
-            You don&apos;t have permission to edit this board. Only owners and
-            editors can modify board settings.
-          </p>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Board Details</CardTitle>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <NotebookIcon /> Details
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <Form {...form}>

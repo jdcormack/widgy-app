@@ -5,7 +5,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { getSubdomainData } from "@/lib/subdomains";
 import { getOrganizationMembers } from "@/app/actions";
-import { BoardSettingsForm } from "./_board-settings-form";
+import { BoardSettings } from "@/components/boards/board-settings";
 
 export default async function BoardSettingsPage({
   params,
@@ -35,8 +35,12 @@ export default async function BoardSettingsPage({
   ]);
 
   return (
-    <div className="w-full max-w-xl mx-auto">
-      <BoardSettingsForm preloadedBoard={preloadedBoard} members={members} />
+    <div className="w-full max-w-xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-3xl font-black mt-2 mb-4">Board Settings</h1>
+      </div>
+
+      <BoardSettings preloadedBoard={preloadedBoard} members={members} />
     </div>
   );
 }

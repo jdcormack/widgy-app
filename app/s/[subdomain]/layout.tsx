@@ -1,7 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { getSubdomainData } from "@/lib/subdomains";
 import { notFound } from "next/navigation";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default async function DashboardLayout({
   children,

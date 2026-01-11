@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { getSubdomainData } from "@/lib/subdomains";
 import { notFound } from "next/navigation";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default async function DashboardLayout({
   children,
@@ -17,9 +18,10 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen bg-blue-50/30">
       <PageHeader />
-      <div className="flex flex-1 flex-col rounded-lg px-5 py-5 mx-2 mt-5 md:m-5 border shadow-xl border-slate-200 overflow-auto">
+
+      <div className="flex flex-1 flex-col md:rounded-t-2xl md:mx-5 mt-5 p-4 md:p-5 max-md:border-t md:border shadow-xl border-slate-200 bg-white">
         {children}
       </div>
     </div>
